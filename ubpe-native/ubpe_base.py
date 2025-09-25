@@ -35,7 +35,7 @@ class UBPEBase[T]:
 
         self.n_tokens = n_tokens
 
-    def _replace_token_pairs(self, l: list[int], sub: dict[int, tuple[int, list[int]]]):
+    def _replace_token_pairs(self, l: list[int], sub: dict[int, tuple[int, list[int]]]):  # noqa: E741
         """
         Function for replacing pair of adjacent tokens in a list witha new one.
 

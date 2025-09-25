@@ -64,11 +64,10 @@ class UBPEClassic[T](UBPEBase[T]):
             progress = tqdm(total=self.n_tokens, initial=max_token - 1)  # pyright: ignore[reportPossiblyUnboundVariable, reportUnknownVariableType]
         while max_token < self.n_tokens:
             # compute all bytepairs
-            pairs = list(itertools.chain(*[itertools.pairwise(doc) for doc in corpus]))
-            n_pairs = len(pairs)
-            pairs = Counter(pairs)
+            pairs = [[*itertools.pairwise(doc)] for doc in corpus]
             # find most frequent bytepairs, a.k.a. candidates
-            mc = pairs.most_common(n_candidates)
+            pairs_counter = Counter(itertools.chain(*pairs))
+            mc = pairs_counter.most_common(n_candidates)
 
             # find a banch of new tokens
             ## first candidate is always added
@@ -83,7 +82,9 @@ class UBPEClassic[T](UBPEBase[T]):
                 (l2, r2), n2 = mc[i]
                 good_to_add = True
                 for (l1, r1), _ in token_pairs:
-                    good_to_add = pairs[(r2, l1)] < n2 and pairs[(r1, l2)] < n2
+                    good_to_add = (
+                        pairs_counter[(r2, l1)] < n2 and pairs_counter[(r1, l2)] < n2
+                    )
                     if not good_to_add:
                         break
 
@@ -94,9 +95,12 @@ class UBPEClassic[T](UBPEBase[T]):
 
             # merge subsequences for each pair of tokens
             mini_mapping: dict[int, tuple[int, list[int]]] = dict()
-            for tokens_map, n in token_pairs:
+            for tokens_map, _ in token_pairs:
                 max_token += 1
-                self.tokens_weights[max_token] = log(n_pairs / n)
+                self.tokens_weights[max_token] = log(
+                    (1 + len(corpus))
+                    / (1 + sum(1 for doc in pairs if tokens_map in doc))
+                )
                 self.tokens_mapper["backward"][max_token] = tokens_map  # pyright: ignore[reportArgumentType]
                 self.tokens_mapper["forward"][tokens_map] = max_token  # pyright: ignore[reportArgumentType]
                 mini_mapping[tokens_map[0]] = (tokens_map[1], [max_token])

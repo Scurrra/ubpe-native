@@ -36,12 +36,12 @@ class UBPE[T](UBPEBase[T]):
         """
         Fit tokenizer with `corpus`.
 
-        On each step top `n_candidates` pairs of adjacent tokens are filtered into a list of pairs of tokens, 
-        where each token is unique. The method does not preserve token's frequency in the corpus and creates 
-        usually more than `self.n_tokens`, so if `rearrange_tokens` is set to True, tokens are rearanged (tokens 
+        On each step top `n_candidates` pairs of adjacent tokens are filtered into a list of pairs of tokens,
+        where each token is unique. The method does not preserve token's frequency in the corpus and creates
+        usually more than `self.n_tokens`, so if `rearrange_tokens` is set to True, tokens are rearanged (tokens
         with lowest numbers are more valueable according to idf metric) and the vocabulary is trimmed to have size `self.n_tokens`.
 
-        Note: this tokenizer differs from `UBPEClassic` in the way the vocabulary is stored. Instead of recursivly 
+        Note: this tokenizer differs from `UBPEClassic` in the way the vocabulary is stored. Instead of recursivly
         substituting a pair of tokens with another one, a sequence of initial tokens are substituded with the new token.
         """
         if not isinstance(corpus[0], list):
@@ -66,11 +66,10 @@ class UBPE[T](UBPEBase[T]):
             progress = tqdm(total=self.n_tokens, initial=max_token - 1)  # pyright: ignore[reportPossiblyUnboundVariable, reportUnknownVariableType]
         while max_token < self.n_tokens:
             # compute all bytepairs
-            pairs = list(itertools.chain(*[itertools.pairwise(doc) for doc in corpus]))
-            n_pairs = len(pairs)
-            pairs = Counter(pairs)
+            pairs = [[*itertools.pairwise(doc)] for doc in corpus]
             # find most frequent bytepairs, a.k.a. candidates
-            mc = pairs.most_common(n_candidates)
+            pairs_counter = Counter(itertools.chain(*pairs))
+            mc = pairs_counter.most_common(n_candidates)
 
             # find a banch of new tokens
             ## first candidate is always added
@@ -85,7 +84,9 @@ class UBPE[T](UBPEBase[T]):
                 (l2, r2), n2 = mc[i]
                 good_to_add = True
                 for (l1, r1), _ in token_pairs:
-                    good_to_add = pairs[(r2, l1)] < n2 and pairs[(r1, l2)] < n2
+                    good_to_add = (
+                        pairs_counter[(r2, l1)] < n2 and pairs_counter[(r1, l2)] < n2
+                    )
                     if not good_to_add:
                         break
 
@@ -96,9 +97,13 @@ class UBPE[T](UBPEBase[T]):
 
             # merge subsequences for each pair of tokens
             mini_mapping: dict[int, tuple[int, list[int]]] = dict()
-            for (t1, t2), n in token_pairs:
+            for tokens_map, _ in token_pairs:
+                (t1, t2) = tokens_map
                 max_token += 1
-                self.tokens_weights[max_token] = log(n_pairs / n)
+                self.tokens_weights[max_token] = log(
+                    (1 + len(corpus))
+                    / (1 + sum(1 for doc in pairs if tokens_map in doc))
+                )
                 tokens_map: tuple[int, ...] = self.tokens_mapper["backward"].get(  # type: ignore
                     t1, (t1,)
                 ) + self.tokens_mapper["backward"].get(t2, (t2,))  # pyright: ignore[reportAssignmentType, reportOperatorIssue]
@@ -126,13 +131,13 @@ class UBPE[T](UBPEBase[T]):
 
     def encode(
         self,
-        doc: str | list[T] | tuple[T], # pyright: ignore[reportRedeclaration]
+        doc: str | list[T] | tuple[T],  # pyright: ignore[reportRedeclaration]
         top_n: int = 1,
     ) -> list[tuple[float, list[int]]]:
         """
         Encode `doc` with fitted tokenizer.
-        
-        Note: "classic" approach is much simpler for encoding but can produce only one variant of the 
+
+        Note: "classic" approach is much simpler for encoding but can produce only one variant of the
         encoded sequence. This implementation allows to select `top_n` code candidates according to the
         tf-idf metric.
         """

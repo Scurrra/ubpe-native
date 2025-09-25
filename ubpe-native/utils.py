@@ -11,7 +11,9 @@ def copy[T](smth: str | tuple[T, ...] | list[T]) -> str | tuple[T, ...] | list[T
     )
 
 
-def join[T](*smth: str | tuple[T, ...] | list[T]) -> str | tuple[T, ...] | list[T] | None:
+def join[T](
+    *smth: str | tuple[T, ...] | list[T],
+) -> str | tuple[T, ...] | list[T] | None:
     """
     Join a sequence of sequences (same type) into a single sequence. Supports strings, tuples, and lists.
     """
