@@ -147,7 +147,7 @@ class UBPEBase[T]:
         self.n_tokens = model["n_tokens"]
 
         self.alphabet = model["alphabet"]
-        self.inverse_alphabet = {value: key for key, value in model["alphabet"]}
+        self.inverse_alphabet = {value: key for key, value in model["alphabet"].items()}
         self.alphabet_size = len(model["alphabet"])
 
         self.tokens_mapper = {
