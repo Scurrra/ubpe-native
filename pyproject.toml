@@ -1,13 +1,19 @@
 [project]
 name = "ubpe-native"
 version = "0.1.0"
-description = ""
+description = "Python implementayion of UBPE tokenization algorithm."
 authors = [
-    {name = "Scurrra",email = "iscurrra@gmail.com"}
+    {name = "Scurrra (Ilja Baroŭski)",email = "iscurrra@gmail.com"}
 ]
 license = {text = "MIT"}
 readme = "README.md"
-requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: Implementation"
+]
+requires-python = ">=3.12"
 dependencies = [
 ]
 
