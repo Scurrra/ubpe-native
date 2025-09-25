@@ -151,7 +151,7 @@ class UBPEBase[T]:
         self.alphabet_size = len(model["alphabet"])
 
         self.tokens_mapper = {
-            "backward": {token: tuple(seq) for token, seq in model["mapper"]},
-            "forward": {tuple(seq): token for token, seq in model["mapper"]},
+            "backward": {token: tuple(seq) for token, seq in model["mapper"].items()},
+            "forward": {tuple(seq): token for token, seq in model["mapper"].items()},
         }
         self.tokens_weights = model["weights"]
