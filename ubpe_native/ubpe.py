@@ -230,3 +230,5 @@ class UBPE[T](UBPEBase[T]):
             _ = self._lookup + ((key,), key)
         for key, value in self.tokens_mapper["forward"].items():
             _ = self._lookup + (key, value)  # pyright: ignore[reportUnknownVariableType, reportOperatorIssue]
+
+        return self

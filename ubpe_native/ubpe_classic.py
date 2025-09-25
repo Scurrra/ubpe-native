@@ -179,3 +179,5 @@ class UBPEClassic[T](UBPEBase[T]):
         super().loads(dump)
 
         self._pairs = list(self.tokens_mapper["forward"].keys())  # type: ignore
+
+        return self

@@ -155,3 +155,5 @@ class UBPEBase[T]:
             "forward": {tuple(seq): token for token, seq in model["mapper"].items()},
         }
         self.tokens_weights = model["weights"]
+
+        return self
