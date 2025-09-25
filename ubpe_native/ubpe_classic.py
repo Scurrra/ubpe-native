@@ -171,3 +171,11 @@ class UBPEClassic[T](UBPEBase[T]):
             else:
                 i += 1
         return [self.inverse_alphabet[token] for token in tokens]
+
+    def loads(self, dump: str):
+        """
+        Load a tokenizer model from a json-serialized string.
+        """
+        super().loads(dump)
+
+        self._pairs = list(self.tokens_mapper["forward"].keys())  # type: ignore

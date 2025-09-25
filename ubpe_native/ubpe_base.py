@@ -1,3 +1,6 @@
+import json
+
+
 class UBPEBase[T]:
     n_tokens: int
     alphabet_size: int
@@ -12,9 +15,11 @@ class UBPEBase[T]:
         alphabet: dict[T, int] | None = None,
         n_tokens: int = 2**10,
     ):
-        assert (
-            alphabet_size is not None or alphabet is not None
-        ), "Either `alphabet_size` or `alphabet` must be specified"
+        if alphabet is None and alphabet_size is None:
+            print(
+                "Either `alphabet_size` or `alphabet` must be specified, or model should be load from json string"
+            )
+            return
 
         # if `alphabet_size` is provided and `alphabet` is not, `T` is assumed to be `int`
         if alphabet is None:
@@ -32,7 +37,6 @@ class UBPEBase[T]:
         self.alphabet_size = alphabet_size
         self.alphabet = alphabet  # type: ignore (`alphabet` could not be `None` till here)
         self.inverse_alphabet = {value: key for key, value in self.alphabet.items()}
-
         self.n_tokens = n_tokens
 
     def _replace_token_pairs(self, l: list[int], sub: dict[int, tuple[int, list[int]]]):  # noqa: E741
@@ -120,3 +124,34 @@ class UBPEBase[T]:
                 )
             ),
         }
+
+    def dumps(self) -> str:
+        """
+        Dumps model to a string.
+        """
+        return json.dumps(
+            {
+                "n_tokens": self.n_tokens,
+                "alphabet": self.alphabet,
+                "mapper": self.tokens_mapper["backward"],
+                "weights": self.tokens_weights,
+            }
+        )
+
+    def loads(self, dump: str):
+        """
+        Load a tokenizer model from a json-serialized string.
+        """
+        model = json.loads(dump)
+
+        self.n_tokens = model["n_tokens"]
+
+        self.alphabet = model["alphabet"]
+        self.inverse_alphabet = {value: key for key, value in model["alphabet"]}
+        self.alphabet_size = len(model["alphabet"])
+
+        self.tokens_mapper = {
+            "backward": {token: tuple(seq) for token, seq in model["mapper"]},
+            "forward": {tuple(seq): token for token, seq in model["mapper"]},
+        }
+        self.tokens_weights = model["weights"]
