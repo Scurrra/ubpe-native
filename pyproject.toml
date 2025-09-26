@@ -1,22 +1,22 @@
 [project]
 name = "ubpe-native"
-version = "0.1.0"
+version = "0.1.1"
 description = "Python implementayion of UBPE tokenization algorithm."
-authors = [
-    {name = "Scurrra (Ilja Baroŭski)",email = "iscurrra@gmail.com"}
-]
-license = {text = "MIT"}
+authors = [{ name = "Scurrra (Ilja Baroŭski)", email = "iscurrra@gmail.com" }]
+license = { text = "MIT" }
 readme = "README.md"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Development Status :: 4 - Beta",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: Implementation"
+    "Programming Language :: Python :: Implementation",
 ]
 requires-python = ">=3.12"
-dependencies = [
-]
+dependencies = []
 
+[project.urls]
+Repository = "https://github.com/Scurrra/ubpe-native.git"
+Issues = "https://github.com/Scurrra/ubpe-native/issues"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
