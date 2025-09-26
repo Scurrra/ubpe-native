@@ -167,19 +167,20 @@ class UBPE[T](UBPEBase[T]):
                     stacks.append((next_key_start, self._lookup(doc, next_key_start)))
             nodes[start] = next
 
-        # clean hanging nodes
-        nodes_to_delete: list[int] = []
-        for node_start, node in nodes.items():
-            keys_to_delete: list[tuple[int, ...]] = []
-            for key, (_, start) in node.items():
-                if start != len(doc) and start not in nodes:
-                    keys_to_delete.append(key)
-            for key in keys_to_delete:
-                del node[key]
-            if len(node) == 0:
-                nodes_to_delete.append(node_start)
-        for start in nodes_to_delete:
-            del nodes[start]
+        ## clean hanging nodes
+        ## redundant step
+        # nodes_to_delete: list[int] = []
+        # for node_start, node in nodes.items():
+        #     keys_to_delete: list[tuple[int, ...]] = []
+        #     for key, (_, start) in node.items():
+        #         if start != len(doc) and start not in nodes:
+        #             keys_to_delete.append(key)
+        #     for key in keys_to_delete:
+        #         del node[key]
+        #     if len(node) == 0:
+        #         nodes_to_delete.append(node_start)
+        # for start in nodes_to_delete:
+        #     del nodes[start]
 
         starts = sorted(nodes.keys(), reverse=True)
         tails: dict[int, list[tuple[float, list[int], Counter[int]]]] = {
@@ -203,7 +204,7 @@ class UBPE[T](UBPEBase[T]):
 
         return [
             (candidate[0], candidate[1])
-            for candidate in sorted(candidates, key=lambda item: item[0], reverse=True)
+            for candidate in candidates
         ]
 
     def decode(self, tokens: list[int]):
