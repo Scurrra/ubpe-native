@@ -66,7 +66,7 @@ class UBPE[T](UBPEBase[T]):
             progress = tqdm(total=self.n_tokens, initial=max_token - 1)  # pyright: ignore[reportPossiblyUnboundVariable, reportUnknownVariableType]
         while max_token < self.n_tokens:
             # compute all bytepairs
-            pairs = [[*itertools.pairwise(doc)] for doc in corpus]
+            pairs = [itertools.pairwise(doc) for doc in corpus]
             # find most frequent bytepairs, a.k.a. candidates
             pairs_counter = Counter(itertools.chain(*pairs))
             mc = pairs_counter.most_common(n_candidates)
