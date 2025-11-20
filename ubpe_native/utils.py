@@ -134,11 +134,11 @@ class Node[K: str | tuple[int, ...] | list[int], V]:
         """
         Trace `key` by the tree. Finds all entries `(k, v)`, where `key` starts with `k` and `v` is not `None`.
         """
+        if start + len(self.key) >= len(key):
+            return stack[-1] if len(stack) > 0 else (key, None)
         if key[start : (start + len(self.key))] == self.key:
             stack.append((self.key, self.value))
             start += len(self.key)
-            if start >= len(key):
-                return stack[-1]
             for child in self.children:
                 if child.key[0] == key[start]:
                     _ = child(key, stack, start)
@@ -182,8 +182,7 @@ class Root[K: str | tuple[int, ...] | list[int], V]:
             if self.children[i].key[0] == key[0]:
                 return self.children[i][key]
             i += 1
-        if i == len(self.children):
-            return None
+        return None
 
     def __call__(self, key: K, start: int = 0) -> list[tuple[K, V]]:
         """

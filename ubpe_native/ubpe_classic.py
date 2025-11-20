@@ -93,7 +93,7 @@ class UBPEClassic[T](UBPEBase[T]):
                     token_pairs.append(mc[i])
                     current_set.update(mc[i][0])
 
-            # merge subsequences for each pair of tokens
+            # add new pair mapping
             mini_mapping: dict[int, tuple[int, list[int]]] = dict()
             for tokens_map, _ in token_pairs:
                 max_token += 1
