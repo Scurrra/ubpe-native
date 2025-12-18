@@ -68,6 +68,8 @@ class UBPEClassic[T](UBPEBase[T]):
             # find most frequent bytepairs, a.k.a. candidates
             pairs_counter = Counter(itertools.chain(*pairs))
             mc = pairs_counter.most_common(n_candidates)
+            if len(mc) == 0:
+                break
 
             # find a banch of new tokens
             ## first candidate is always added
