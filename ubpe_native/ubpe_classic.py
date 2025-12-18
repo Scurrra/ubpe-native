@@ -119,7 +119,7 @@ class UBPEClassic[T](UBPEBase[T]):
             self._rearrange_tokens_by_weight()
         self._pairs = list(self.tokens_mapper["forward"].keys())  # type: ignore
 
-    def encode(self, doc: str | list[T] | tuple[T]) -> list[int]:  # pyright: ignore[reportRedeclaration]
+    def encode(self, doc: str | list[T] | tuple[T]) -> list[tuple[list[int], float]]:  # pyright: ignore[reportRedeclaration]
         """
         Encode `doc` with fitted tokenizer.
 
@@ -157,7 +157,13 @@ class UBPEClassic[T](UBPEBase[T]):
             }  # pyright: ignore[reportAssignmentType]
             doc = self._replace_token_pairs(doc, mini_mapping)
 
-        return doc
+        counter = Counter(doc)
+        weight = sum(
+            (1 + log(quantity)) * self.tokens_weights.get(token, 0.0)
+            for token, quantity in counter.items()
+        )
+
+        return [(doc, weight)]
 
     def decode(self, tokens: list[int]):
         """
