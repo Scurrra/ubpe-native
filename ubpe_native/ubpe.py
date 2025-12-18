@@ -133,7 +133,7 @@ class UBPE[T](UBPEBase[T]):
         self,
         doc: str | list[T] | tuple[T],  # pyright: ignore[reportRedeclaration]
         top_n: int = 1,
-    ) -> list[tuple[float, list[int]]]:
+    ) -> list[tuple[list[int], float]]:
         """
         Encode `doc` with fitted tokenizer.
 
@@ -202,10 +202,7 @@ class UBPE[T](UBPEBase[T]):
             tails[start] = sorted(buf, key=lambda item: item[0], reverse=True)[:buf_n]
         candidates = tails[0]
 
-        return [
-            (candidate[0], candidate[1])
-            for candidate in candidates
-        ]
+        return [(candidate[1], candidate[0]) for candidate in candidates]
 
     def decode(self, tokens: list[int]):
         """
