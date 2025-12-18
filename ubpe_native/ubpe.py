@@ -3,7 +3,7 @@ import itertools
 from math import log
 
 from .ubpe_base import UBPEBase
-from .utils import SSSTree
+from .utils import SSSTree, TopElements
 
 try:
     from tqdm import tqdm  # pyright: ignore[reportMissingModuleSource]
@@ -11,6 +11,53 @@ except ImportError:
     _has_tqdm = False
 else:
     _has_tqdm = True
+
+
+class EncodingCandidate:
+    weight: float
+    sequence: list[int]
+    counter: Counter[int]
+
+    def __init__(
+        self,
+        weight: float = 0.0,
+        sequence: list[int] | None = None,
+        counter: Counter[int] | None = None,
+    ):
+        self.weight = weight
+
+        if sequence is None:
+            self.sequence = []
+        else:
+            self.sequence = sequence
+
+        if counter is None:
+            self.counter = Counter(self.sequence)
+        else:
+            self.counter = counter.copy()
+
+    def __lt__(self, rhs: "EncodingCandidate") -> bool:
+        if self.weight == rhs.weight:
+            return len(self.sequence) > len(rhs.sequence)
+        return self.weight < rhs.weight
+
+    def __le__(self, rhs: "EncodingCandidate") -> bool:
+        if self.weight == rhs.weight:
+            return len(self.sequence) >= len(rhs.sequence)
+        return self.weight <= rhs.weight
+
+    def __gt__(self, rhs: "EncodingCandidate") -> bool:
+        if self.weight == rhs.weight:
+            return len(self.sequence) < len(rhs.sequence)
+        return self.weight > rhs.weight
+
+    def __ge__(self, rhs: "EncodingCandidate") -> bool:
+        if self.weight == rhs.weight:
+            return len(self.sequence) <= len(rhs.sequence)
+        return self.weight >= rhs.weight
+
+    def __call__(self) -> tuple[list[int], float]:
+        return (self.sequence, self.weight)
 
 
 class UBPE[T](UBPEBase[T]):
@@ -185,26 +232,23 @@ class UBPE[T](UBPEBase[T]):
         #     del SSSTreeNodes[start]
 
         starts = sorted(SSSTreeNodes.keys(), reverse=True)
-        tails: dict[int, list[tuple[float, list[int], Counter[int]]]] = {
-            len(doc): [(0, [], Counter([]))]
-        }
+        tails: dict[int, list[EncodingCandidate]] = {len(doc): [EncodingCandidate()]}
         for start in starts:
-            buf: list[tuple[float, list[int], Counter[int]]] = []
+            buf = TopElements[EncodingCandidate](top_n)
             for token, next_start in SSSTreeNodes[start].values():
-                for _, tail, counter in tails[next_start]:
-                    buf_element = [token] + tail.copy()
-                    buf_counter = counter.copy()
+                for candidate in tails[next_start]:
+                    buf_element = [token] + candidate.sequence.copy()
+                    buf_counter = candidate.counter.copy()
                     buf_counter.update([token])
                     buf_weight: float = sum(
-                        (1 + log(frequency)) * self.tokens_weights.get(token, 0)
+                        (1 + log(frequency)) * self.tokens_weights.get(token, 0.0)
                         for token, frequency in buf_counter.items()
                     )
-                    buf.append((buf_weight, buf_element, buf_counter))
-            buf_n = top_n if top_n <= len(buf) else len(buf)
-            tails[start] = sorted(buf, key=lambda item: item[0], reverse=True)[:buf_n]
+                    buf.push(EncodingCandidate(buf_weight, buf_element, buf_counter))
+            tails[start] = buf.sorted()
         candidates = tails[0]
 
-        return [(candidate[1], candidate[0]) for candidate in candidates]
+        return [candidate() for candidate in candidates]
 
     def decode(self, tokens: list[int]):
         """
