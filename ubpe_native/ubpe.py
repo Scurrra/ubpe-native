@@ -76,7 +76,7 @@ class UBPE[T](UBPEBase[T]):
             token_pairs = [mc[0]]
             ## each old token may occure only in one candidate
             current_set = set(mc[0][0])
-            for i in range(1, n_candidates):
+            for i in range(1, len(mc)):
                 if len(current_set.intersection(mc[i][0])) != 0:
                     continue
 
