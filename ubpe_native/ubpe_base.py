@@ -88,41 +88,32 @@ class UBPEBase[T]:
         to_delete = [buf[i][0] for i in to_delete]  # type: ignore (`buf[_][0]` is guaranteed to be of type `int`)
         buf = buf[::-1]
 
-        transformer = {buf[i][0]: self.alphabet_size + i for i in range(len(buf))}
+        # the old approach could produce out-of-bounds token ids
+        # transformer = {buf[i][0]: self.alphabet_size + i for i in range(len(buf))}
+        transformer = dict[int | tuple[int, ...], int]()
+        offset = 0
+        for i in range(len(buf) - len(to_delete)):
+            while buf[i + offset][0] in to_delete:
+                offset += 1
+            transformer[buf[i + offset][0]] = self.alphabet_size + i
 
         self.tokens_weights = {
-            transformer[pair[0]]: self.tokens_weights[pair[0]]  # type: ignore (`pair[0]` is guaranteed to be of type int)
-            for pair in buf
-            if pair[0] not in to_delete
+            mapper[1]: self.tokens_weights[mapper[0]]  # type: ignore (`mapper[0]`, i.e. key in `transformer`, or the old artificial token, is guaranteed to be of type `int`)
+            for mapper in transformer.items()
         }
 
+        # old approac sorted tokens before constructing a dict, but in the new one `transformer.items()` returns an already sorted by token weights list of mappings
         self.tokens_mapper = {  # type: ignore
-            "forward": dict(
-                sorted(
-                    [
-                        (
-                            tuple(transformer.get(t, t) for t in seq),  # type: ignore (`seq` is guaranteed to be of type `tuple[int]`)
-                            transformer.get(token, token),
-                        )
-                        for seq, token in self.tokens_mapper["forward"].items()
-                        if token not in to_delete
-                    ],
-                    key=lambda item: item[1],
+            "backward": {
+                new_token: tuple(
+                    transformer.get(token, token)  # type: ignore (`token` is an element of `tuple[int, ...]`)
+                    for token in self.tokens_mapper["backward"][old_token]  # type: ignore (the collection here is quaranteed to be of type `tuple[int, ...]`)
                 )
-            ),
-            "backward": dict(
-                sorted(
-                    [
-                        (
-                            transformer.get(token, token),
-                            tuple(transformer.get(t, t) for t in seq),  # type: ignore (`seq` is guaranteed to be of type `tuple[int]`)
-                        )
-                        for token, seq in self.tokens_mapper["backward"].items()
-                        if token not in to_delete
-                    ],
-                    key=lambda item: item[0],
-                )
-            ),
+                for old_token, new_token in transformer.items()
+            }
+        }
+        self.tokens_mapper["forward"] = {
+            seq: token for token, seq in self.tokens_mapper["backward"].items()
         }
 
     def dumps(self) -> str:
