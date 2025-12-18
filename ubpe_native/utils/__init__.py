@@ -1,5 +1,5 @@
 from .ssstree import *
 
 __all__ = [
-    "Root"
+    "SSSTree"
 ]

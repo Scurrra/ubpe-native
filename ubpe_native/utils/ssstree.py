@@ -1,13 +1,14 @@
 from .utils import copy
 
-class Node[K: str | tuple[int, ...] | list[int], V]:
+
+class SSSTreeNode[K: str | tuple[int, ...] | list[int], V]:
     """
     Node of a radix tree.
     """
 
     key: K
     value: V | None  # `None` only in splits
-    children: list["Node[K, V]"]
+    children: list["SSSTreeNode[K, V]"]
 
     def __init__(self, key: K, value: V):
         self.key = key
@@ -16,7 +17,7 @@ class Node[K: str | tuple[int, ...] | list[int], V]:
 
     def __add__(self, element: tuple[K, V]):
         """
-        Add new entry to the tree that starts with `Node`.
+        Add new entry to the tree that starts with the current node.
         """
         (key, value) = element
 
@@ -34,7 +35,7 @@ class Node[K: str | tuple[int, ...] | list[int], V]:
                 return self.value == value
 
             # split vertex in two
-            split = Node[K, V](self.key[i:], self.value)  # type: ignore (no `None` here)
+            split = SSSTreeNode[K, V](self.key[i:], self.value)  # type: ignore (no `None` here)
             split.children = self.children
             self.children = [split]
             self.key = key  # same as self.key[:i]
@@ -53,13 +54,13 @@ class Node[K: str | tuple[int, ...] | list[int], V]:
                         is_new = False
                         break
                 if is_new:
-                    self.children.append(Node[K, V](key, value))  # type: ignore (no `None` here)
+                    self.children.append(SSSTreeNode[K, V](key, value))  # type: ignore (no `None` here)
 
             # the new and the old keys have common first i elements
             else:
-                split = Node[K, V](self.key[i:], self.value)  # type: ignore (no `None` here)
+                split = SSSTreeNode[K, V](self.key[i:], self.value)  # type: ignore (no `None` here)
                 split.children = self.children
-                self.children = [split, Node[K, V](key, value)]  # type: ignore (no `None` here)
+                self.children = [split, SSSTreeNode[K, V](key, value)]  # type: ignore (no `None` here)
                 self.key = self.key[:i]  # type: ignore
                 self.value = None
 
@@ -93,12 +94,16 @@ class Node[K: str | tuple[int, ...] | list[int], V]:
         return stack[-1]
 
 
-class Root[K: str | tuple[int, ...] | list[int], V]:
+class SSSTree[K: str | tuple[int, ...] | list[int], V]:
     """
-    Root of a radix tree.
+        SubSequence Search Tree.
+
+    Well, it's a version of an optimized trie but with an efficient search operator `()` 
+    which return not the full match for the `key`, but all non-null entries 
+    which keys are prefixes in the `key`.
     """
 
-    children: list["Node[K, V]"]
+    children: list["SSSTreeNode[K, V]"]
 
     def __init__(self):
         self.children = []
@@ -107,7 +112,7 @@ class Root[K: str | tuple[int, ...] | list[int], V]:
         """
         Add new entry to the tree.
 
-        Function searches for the elder child subtree (of type `Node[K, V]`) and adds the entry to this subtree.
+        Function searches for the elder child subtree (of type `SSSTreeNode[K, V]`) and adds the entry to this subtree.
         If subtree is not found, the new one is created.
         """
         i = 0
@@ -117,7 +122,7 @@ class Root[K: str | tuple[int, ...] | list[int], V]:
                 break
             i += 1
         if i == len(self.children):
-            self.children.append(Node(*element))
+            self.children.append(SSSTreeNode(*element))
 
         return True
 

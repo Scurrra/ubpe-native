@@ -3,7 +3,7 @@ import itertools
 from math import log
 
 from .ubpe_base import UBPEBase
-from .utils import Root
+from .utils import SSSTree
 
 try:
     from tqdm import tqdm  # pyright: ignore[reportMissingModuleSource]
@@ -14,7 +14,7 @@ else:
 
 
 class UBPE[T](UBPEBase[T]):
-    _lookup: Root[tuple[int, ...], int]
+    _lookup: SSSTree[tuple[int, ...], int]
 
     def __init__(
         self,
@@ -125,7 +125,7 @@ class UBPE[T](UBPEBase[T]):
 
         if rearrange_tokens:
             self._rearrange_tokens_by_weight()
-        self._lookup = Root[tuple[int], int]()
+        self._lookup = SSSTree[tuple[int], int]()
         for key in self.inverse_alphabet.keys():
             _ = self._lookup + ((key,), key)
         for key, value in self.tokens_mapper["forward"].items():
@@ -157,40 +157,40 @@ class UBPE[T](UBPEBase[T]):
             stacks.append((start, stack))
             start += len(stack[-1][0])
 
-        # build nodes
-        nodes: dict[int, dict[tuple[int, ...], tuple[int, int]]] = dict()
+        # build SSSTreeNodes
+        SSSTreeNodes: dict[int, dict[tuple[int, ...], tuple[int, int]]] = dict()
         while len(stacks) != 0:
             start, stack = stacks.pop()
             next: dict[tuple[int, ...], tuple[int, int]] = dict()
             for key, value in stack:
                 next_key_start = start + len(key)
                 next[key] = (value, next_key_start)
-                if next_key_start != len(doc) and next_key_start not in nodes:
+                if next_key_start != len(doc) and next_key_start not in SSSTreeNodes:
                     stacks.append((next_key_start, self._lookup(doc, next_key_start)))
-            nodes[start] = next
+            SSSTreeNodes[start] = next
 
-        ## clean hanging nodes
+        ## clean hanging SSSTreeNodes
         ## redundant step
-        # nodes_to_delete: list[int] = []
-        # for node_start, node in nodes.items():
+        # SSSTreeNodes_to_delete: list[int] = []
+        # for SSSTreeNode_start, SSSTreeNode in SSSTreeNodes.items():
         #     keys_to_delete: list[tuple[int, ...]] = []
-        #     for key, (_, start) in node.items():
-        #         if start != len(doc) and start not in nodes:
+        #     for key, (_, start) in SSSTreeNode.items():
+        #         if start != len(doc) and start not in SSSTreeNodes:
         #             keys_to_delete.append(key)
         #     for key in keys_to_delete:
-        #         del node[key]
-        #     if len(node) == 0:
-        #         nodes_to_delete.append(node_start)
-        # for start in nodes_to_delete:
-        #     del nodes[start]
+        #         del SSSTreeNode[key]
+        #     if len(SSSTreeNode) == 0:
+        #         SSSTreeNodes_to_delete.append(SSSTreeNode_start)
+        # for start in SSSTreeNodes_to_delete:
+        #     del SSSTreeNodes[start]
 
-        starts = sorted(nodes.keys(), reverse=True)
+        starts = sorted(SSSTreeNodes.keys(), reverse=True)
         tails: dict[int, list[tuple[float, list[int], Counter[int]]]] = {
             len(doc): [(0, [], Counter([]))]
         }
         for start in starts:
             buf: list[tuple[float, list[int], Counter[int]]] = []
-            for token, next_start in nodes[start].values():
+            for token, next_start in SSSTreeNodes[start].values():
                 for _, tail, counter in tails[next_start]:
                     buf_element = [token] + tail.copy()
                     buf_counter = counter.copy()
@@ -225,7 +225,7 @@ class UBPE[T](UBPEBase[T]):
         """
         super().loads(dump)
 
-        self._lookup = Root[tuple[int], int]()
+        self._lookup = SSSTree[tuple[int], int]()
         for key in self.inverse_alphabet.keys():
             _ = self._lookup + ((key,), key)
         for key, value in self.tokens_mapper["forward"].items():
