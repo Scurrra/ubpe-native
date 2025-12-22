@@ -88,7 +88,7 @@ class UBPE[T](UBPEBase[T]):
         usually more than `self.n_tokens`, so if `rearrange_tokens` is set to True, tokens are rearanged (tokens
         with lowest numbers are more valueable according to idf metric) and the vocabulary is trimmed to have size `self.n_tokens`.
 
-        Note: this tokenizer differs from `UBPEClassic` in the way the vocabulary is stored. Instead of recursivly
+        Note: this tokenizer differs from `UBPEClassic` in the way the vocabulary is stored. Instead of recursively
         substituting a pair of tokens with another one, a sequence of initial tokens are substituded with the new token.
         """
         if not isinstance(corpus[0], list):

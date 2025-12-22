@@ -15,11 +15,9 @@ class UBPEBase[T]:
         alphabet: dict[T, int] | None = None,
         n_tokens: int = 2**10,
     ):
-        if alphabet is None and alphabet_size is None:
-            print(
-                "Either `alphabet_size` or `alphabet` must be specified, or model should be load from json string"
-            )
-            return
+        assert not (
+            alphabet is None and alphabet_size is None
+        ), "Either `alphabet_size` or `alphabet` must be specified, or model should be load from json string"
 
         # if `alphabet_size` is provided and `alphabet` is not, `T` is assumed to be `int`
         if alphabet is None:
@@ -66,6 +64,7 @@ class UBPEBase[T]:
         dictionary of the tokenizer to be not greater than `self.n_tokens`.
         """
         assert self.tokens_weights is not None, "Tokenizer is not fitted"
+
         buf = sorted(
             list(self.tokens_mapper["backward"].items()),
             key=lambda item: self.tokens_weights[item[0]],  # type: ignore (`item[0]` is guaranteed to be of type int)
@@ -102,7 +101,7 @@ class UBPEBase[T]:
             for mapper in transformer.items()
         }
 
-        # old approac sorted tokens before constructing a dict, but in the new one `transformer.items()` returns an already sorted by token weights list of mappings
+        # old approach sorted tokens before constructing a dict, but in the new one `transformer.items()` returns an already sorted by token weights list of mappings
         self.tokens_mapper = {  # type: ignore
             "backward": {
                 new_token: tuple(
@@ -111,9 +110,6 @@ class UBPEBase[T]:
                 )
                 for old_token, new_token in transformer.items()
             }
-        }
-        self.tokens_mapper["forward"] = {
-            seq: token for token, seq in self.tokens_mapper["backward"].items()
         }
 
     def dumps(self) -> str:

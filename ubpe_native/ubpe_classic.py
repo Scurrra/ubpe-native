@@ -64,7 +64,7 @@ class UBPEClassic[T](UBPEBase[T]):
             progress = tqdm(total=self.n_tokens, initial=max_token - 1)  # pyright: ignore[reportPossiblyUnboundVariable, reportUnknownVariableType]
         while max_token < self.n_tokens:
             # compute all bytepairs
-            pairs = [itertools.pairwise(doc) for doc in corpus]
+            pairs = [list(itertools.pairwise(doc)) for doc in corpus]
             # find most frequent bytepairs, a.k.a. candidates
             pairs_counter = Counter(itertools.chain(*pairs))
             mc = pairs_counter.most_common(n_candidates)
@@ -95,6 +95,7 @@ class UBPEClassic[T](UBPEBase[T]):
                     token_pairs.append(mc[i])
                     current_set.update(mc[i][0])
 
+            pairs = [set(_) for _ in pairs]
             # add new pair mapping
             mini_mapping: dict[int, tuple[int, list[int]]] = dict()
             for tokens_map, _ in token_pairs:
@@ -104,7 +105,6 @@ class UBPEClassic[T](UBPEBase[T]):
                     / (1 + sum(1 for doc in pairs if tokens_map in doc))
                 )
                 self.tokens_mapper["backward"][max_token] = tokens_map  # pyright: ignore[reportArgumentType]
-                self.tokens_mapper["forward"][tokens_map] = max_token  # pyright: ignore[reportArgumentType]
                 mini_mapping[tokens_map[0]] = (tokens_map[1], [max_token])
 
             corpus = [
@@ -114,11 +114,17 @@ class UBPEClassic[T](UBPEBase[T]):
 
             if use_tqdm:
                 progress.update(len(token_pairs))  # pyright: ignore[reportPossiblyUnboundVariable]
+
         if use_tqdm:
             progress.close()  # pyright: ignore[reportPossiblyUnboundVariable]
 
         if rearrange_tokens:
             self._rearrange_tokens_by_weight()
+        
+        self.tokens_mapper["forward"] = {
+            seq: token for token, seq in self.tokens_mapper["backward"].items()
+        }
+
         self._pairs = list(self.tokens_mapper["forward"].keys())  # type: ignore
 
     def encode(self, doc: str | list[T] | tuple[T]) -> list[tuple[list[int], float]]:  # pyright: ignore[reportRedeclaration]
