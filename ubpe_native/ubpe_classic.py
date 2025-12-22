@@ -120,7 +120,7 @@ class UBPEClassic[T](UBPEBase[T]):
 
         if rearrange_tokens:
             self._rearrange_tokens_by_weight()
-        
+
         self.tokens_mapper["forward"] = {
             seq: token for token, seq in self.tokens_mapper["backward"].items()
         }
@@ -186,12 +186,13 @@ class UBPEClassic[T](UBPEBase[T]):
                 i += 1
         return [self.inverse_alphabet[token] for token in tokens]
 
-    def loads(self, dump: str):
+    @classmethod
+    def loads(cls, dump: str, token_type: type = int):
         """
         Load a tokenizer model from a json-serialized string.
         """
-        super().loads(dump)
+        inst = super().loads(dump, token_type=token_type)
 
-        self._pairs = list(self.tokens_mapper["forward"].keys())  # type: ignore
+        inst._pairs = list(inst.tokens_mapper["forward"].keys())  # type: ignore
 
-        return self
+        return inst

@@ -263,16 +263,17 @@ class UBPE[T](UBPEBase[T]):
                 result.append(token)  # pyright: ignore[reportUnknownMemberType]
         return [self.inverse_alphabet[token] for token in result]
 
-    def loads(self, dump: str):
+    @classmethod
+    def loads(cls, dump: str, token_type: type = int):
         """
         Load a tokenizer model from a json-serialized string.
         """
-        super().loads(dump)
+        inst = super().loads(dump, token_type=token_type)
 
-        self._lookup = SSSTree[tuple[int], int]()
-        for key in self.inverse_alphabet.keys():
-            _ = self._lookup + ((key,), key)
-        for key, value in self.tokens_mapper["forward"].items():
-            _ = self._lookup + (key, value)  # pyright: ignore[reportUnknownVariableType, reportOperatorIssue]
+        inst._lookup = SSSTree[tuple[int], int]()
+        for key in inst.inverse_alphabet.keys():
+            _ = inst._lookup + ((key,), key)
+        for key, value in inst.tokens_mapper["forward"].items():
+            _ = inst._lookup + (key, value)  # pyright: ignore[reportUnknownVariableType, reportOperatorIssue]
 
-        return self
+        return inst
