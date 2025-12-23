@@ -157,7 +157,6 @@ class UBPE[T](UBPEBase[T]):
                     t1, (t1,)
                 ) + self.tokens_mapper["backward"].get(t2, (t2,))  # pyright: ignore[reportAssignmentType, reportOperatorIssue]
                 self.tokens_mapper["backward"][max_token] = tokens_map
-                self.tokens_mapper["forward"][tokens_map] = max_token
                 mini_mapping[t1] = (t2, [max_token])
 
             corpus = [
@@ -172,6 +171,11 @@ class UBPE[T](UBPEBase[T]):
 
         if rearrange_tokens:
             self._rearrange_tokens_by_weight()
+        
+        self.tokens_mapper["forward"] = {
+            seq: token for token, seq in self.tokens_mapper["backward"].items()
+        }
+
         self._lookup = SSSTree[tuple[int], int]()
         for key in self.inverse_alphabet.keys():
             _ = self._lookup + ((key,), key)

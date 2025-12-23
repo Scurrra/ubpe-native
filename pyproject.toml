@@ -1,6 +1,6 @@
 [project]
 name = "ubpe-native"
-version = "0.2.0-rc2"
+version = "0.2.0-rc3"
 description = "Python implementation of UBPE tokenization algorithm."
 authors = [{ name = "Scurrra (Ilja Baroŭski)", email = "iscurrra@gmail.com" }]
 license = { text = "MIT" }
