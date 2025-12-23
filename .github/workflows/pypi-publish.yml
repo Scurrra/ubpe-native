@@ -22,8 +22,8 @@ jobs:
         run: |
           pip install --user pipx
           pipx ensurepath
-          # pipx install poetry
-          poetry install --no-interaction --no-root
+          pipx install poetry
+          # poetry install --no-interaction --no-root
           poetry build --format wheel
 
       - name: Upload distributions
