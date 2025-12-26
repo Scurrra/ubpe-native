@@ -1,8 +1,9 @@
 from collections import Counter
-import itertools
+from itertools import pairwise
 from math import log
 
 from .ubpe_base import UBPEBase
+from .utils import PairCounter
 
 try:
     from tqdm import tqdm  # pyright: ignore[reportMissingModuleSource]
@@ -64,9 +65,8 @@ class UBPEClassic[T](UBPEBase[T]):
             progress = tqdm(total=self.n_tokens, initial=max_token - 1)  # pyright: ignore[reportPossiblyUnboundVariable, reportUnknownVariableType]
         while max_token < self.n_tokens:
             # compute all bytepairs
-            pairs = [list(itertools.pairwise(doc)) for doc in corpus]
+            pairs_counter = PairCounter(corpus)
             # find most frequent bytepairs, a.k.a. candidates
-            pairs_counter = Counter(itertools.chain(*pairs))
             mc = pairs_counter.most_common(n_candidates)
             if len(mc) == 0:
                 break
@@ -85,7 +85,8 @@ class UBPEClassic[T](UBPEBase[T]):
                 good_to_add = True
                 for (l1, r1), _ in token_pairs:
                     good_to_add = (
-                        pairs_counter[(r2, l1)] < n2 and pairs_counter[(r1, l2)] < n2
+                        pairs_counter((r2, l1))[1] < n2
+                        and pairs_counter((r1, l2))[1] < n2
                     )
                     if not good_to_add:
                         break
@@ -95,14 +96,12 @@ class UBPEClassic[T](UBPEBase[T]):
                     token_pairs.append(mc[i])
                     current_set.update(mc[i][0])
 
-            pairs = [set(_) for _ in pairs]
             # add new pair mapping
             mini_mapping: dict[int, tuple[int, list[int]]] = dict()
             for tokens_map, _ in token_pairs:
                 max_token += 1
                 self.tokens_weights[max_token] = log(
-                    (1 + len(corpus))
-                    / (1 + sum(1 for doc in pairs if tokens_map in doc))
+                    (1 + len(corpus)) / (1 + pairs_counter(tokens_map)[0])
                 )
                 self.tokens_mapper["backward"][max_token] = tokens_map  # pyright: ignore[reportArgumentType]
                 mini_mapping[tokens_map[0]] = (tokens_map[1], [max_token])
@@ -111,6 +110,8 @@ class UBPEClassic[T](UBPEBase[T]):
                 self._replace_token_pairs(corpus[i], mini_mapping)
                 for i in range(len(corpus))
             ]
+
+            del pairs_counter
 
             if use_tqdm:
                 progress.update(len(token_pairs))  # pyright: ignore[reportPossiblyUnboundVariable]
@@ -141,7 +142,7 @@ class UBPEClassic[T](UBPEBase[T]):
         doc: list[int] = [self.alphabet[token] for token in doc]  # pyright: ignore[reportArgumentType]
 
         while True:
-            pairs = set(itertools.pairwise(doc))
+            pairs = set(pairwise(doc))
 
             i = 0
             while i < len(self._pairs) and self._pairs[i] not in pairs:

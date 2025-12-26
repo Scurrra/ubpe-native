@@ -1,9 +1,8 @@
 from collections import Counter
-import itertools
 from math import log
 
 from .ubpe_base import UBPEBase
-from .utils import SSSTree, TopElements
+from .utils import SSSTree, TopElements, PairCounter
 
 try:
     from tqdm import tqdm  # pyright: ignore[reportMissingModuleSource]
@@ -113,9 +112,8 @@ class UBPE[T](UBPEBase[T]):
             progress = tqdm(total=self.n_tokens, initial=max_token - 1)  # pyright: ignore[reportPossiblyUnboundVariable, reportUnknownVariableType]
         while max_token < self.n_tokens:
             # compute all bytepairs
-            pairs = [itertools.pairwise(doc) for doc in corpus]
+            pairs_counter = PairCounter(corpus)
             # find most frequent bytepairs, a.k.a. candidates
-            pairs_counter = Counter(itertools.chain(*pairs))
             mc = pairs_counter.most_common(n_candidates)
             if len(mc) == 0:
                 break
@@ -134,7 +132,8 @@ class UBPE[T](UBPEBase[T]):
                 good_to_add = True
                 for (l1, r1), _ in token_pairs:
                     good_to_add = (
-                        pairs_counter[(r2, l1)] < n2 and pairs_counter[(r1, l2)] < n2
+                        pairs_counter((r2, l1))[1] < n2
+                        and pairs_counter((r1, l2))[1] < n2
                     )
                     if not good_to_add:
                         break
@@ -150,8 +149,7 @@ class UBPE[T](UBPEBase[T]):
                 (t1, t2) = tokens_map
                 max_token += 1
                 self.tokens_weights[max_token] = log(
-                    (1 + len(corpus))
-                    / (1 + sum(1 for doc in pairs if tokens_map in doc))
+                    (1 + len(corpus)) / (1 + pairs_counter(tokens_map)[0])
                 )
                 tokens_map: tuple[int, ...] = self.tokens_mapper["backward"].get(  # type: ignore
                     t1, (t1,)
@@ -171,7 +169,7 @@ class UBPE[T](UBPEBase[T]):
 
         if rearrange_tokens:
             self._rearrange_tokens_by_weight()
-        
+
         self.tokens_mapper["forward"] = {
             seq: token for token, seq in self.tokens_mapper["backward"].items()
         }
