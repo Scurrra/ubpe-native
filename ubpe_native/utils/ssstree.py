@@ -83,11 +83,13 @@ class SSSTreeNode[K: str | tuple[int, ...] | list[int], V]:
         """
         Trace `key` by the tree. Finds all entries `(k, v)`, where `key` starts with `k` and `v` is not `None`.
         """
-        if start + len(self.key) >= len(key):
+        if start + len(self.key) > len(key):
             return stack[-1] if len(stack) > 0 else (key, None)
         if key[start : (start + len(self.key))] == self.key:
             stack.append((self.key, self.value))
             start += len(self.key)
+            if start == len(key):
+                return stack[-1]        
             for child in self.children:
                 if child.key[0] == key[start]:
                     _ = child(key, stack, start)
