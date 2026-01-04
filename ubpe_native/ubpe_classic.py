@@ -174,7 +174,7 @@ class UBPEClassic[T](UBPEBase[T]):
 
         return [(doc, weight)]
 
-    def decode(self, tokens: list[int]):
+    def decode(self, tokens: list[int]) -> list[T] | T:
         """
         Decode a list of `tokens` with the fitted tokenizer.
         """
@@ -185,7 +185,10 @@ class UBPEClassic[T](UBPEBase[T]):
                 tokens[i : i + 1] = self.tokens_mapper["backward"][tokens[i]]  # type: ignore
             else:
                 i += 1
-        return [self.inverse_alphabet[token] for token in tokens]
+        doc = [self.inverse_alphabet[token] for token in tokens]
+        if isinstance(doc[0], str):
+            return "".join(doc) # type: ignore
+        return doc
 
     @classmethod
     def loads(cls, dump: str, token_type: type = int):

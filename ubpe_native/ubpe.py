@@ -235,24 +235,52 @@ class UBPE[T](UBPEBase[T]):
 
         starts = sorted(SSSTreeNodes.keys(), reverse=True)
         tails: dict[int, list[EncodingCandidate]] = {len(doc): [EncodingCandidate()]}
-        for start in starts:
-            buf = TopElements[EncodingCandidate](top_n)
-            for token, next_start in SSSTreeNodes[start].values():
-                for candidate in tails[next_start]:
-                    buf_element = [token] + candidate.sequence.copy()
-                    buf_counter = candidate.counter.copy()
-                    buf_counter.update([token])
-                    buf_weight: float = sum(
-                        (1 + log(frequency)) * self.tokens_weights.get(token, 0.0)
-                        for token, frequency in buf_counter.items()
-                    )
-                    buf.push(EncodingCandidate(buf_weight, buf_element, buf_counter))
-            tails[start] = buf.sorted()
+        if top_n == 1:
+            for start in starts:
+                best: EncodingCandidate | None = None
+                for token, next_start in SSSTreeNodes[start].values():
+                    for candidate in tails[next_start]:
+                        buf_element = [token] + candidate.sequence.copy()
+                        buf_counter = candidate.counter.copy()
+                        buf_counter.update([token])
+                        buf_weight: float = sum(
+                            (1 + log(frequency)) * self.tokens_weights.get(token, 0.0)
+                            for token, frequency in buf_counter.items()
+                        )
+                        if best is None:
+                            best = EncodingCandidate(
+                                buf_weight, buf_element, buf_counter
+                            )
+                        else:
+                            if (
+                                best.weight == buf_weight
+                                and len(best.sequence) > len(buf_element)
+                            ) or best.weight < buf_weight:
+                                best = EncodingCandidate(
+                                    buf_weight, buf_element, buf_counter
+                                )
+                tails[start] = [ best ] # type: ignore
+        else:
+            for start in starts:
+                buf = TopElements[EncodingCandidate](top_n)
+                for token, next_start in SSSTreeNodes[start].values():
+                    for candidate in tails[next_start]:
+                        buf_element = [token] + candidate.sequence.copy()
+                        buf_counter = candidate.counter.copy()
+                        buf_counter.update([token])
+                        buf_weight: float = sum(
+                            (1 + log(frequency)) * self.tokens_weights.get(token, 0.0)
+                            for token, frequency in buf_counter.items()
+                        )
+                        buf.push(
+                            EncodingCandidate(buf_weight, buf_element, buf_counter)
+                        )
+                tails[start] = buf.sorted()
         candidates = tails[0]
 
         return [candidate() for candidate in candidates]
 
-    def decode(self, tokens: list[int]):
+    def decode(self, tokens: list[int]) -> list[T] | T:
         """
         Decode a list of `tokens` with the fitted tokenizer.
         """
@@ -263,7 +291,10 @@ class UBPE[T](UBPEBase[T]):
                 result.extend(self.tokens_mapper["backward"][token])  # pyright: ignore[reportUnknownMemberType, reportArgumentType]
             else:
                 result.append(token)  # pyright: ignore[reportUnknownMemberType]
-        return [self.inverse_alphabet[token] for token in result]
+        doc = [self.inverse_alphabet[token] for token in result]
+        if isinstance(doc[0], str):
+            return "".join(doc) # type: ignore
+        return doc
 
     @classmethod
     def loads(cls, dump: str, token_type: type = int):
