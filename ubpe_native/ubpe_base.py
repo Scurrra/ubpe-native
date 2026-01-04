@@ -135,21 +135,22 @@ class UBPEBase[T]:
         """
         model = json.loads(dump)
 
-        inst = cls(n_tokens=model["n_tokens"], alphabet_size=len(model["alphabet"]))
+        inst = cls(n_tokens=int(model["n_tokens"]), alphabet_size=len(model["alphabet"]))
 
         for key, value in model["alphabet"].items():
             key = token_type(key)
+            value = int(value)
             inst.alphabet[key] = value
             inst.inverse_alphabet[value] = key
 
         for token, seq in model["mapper"].items():
-            token = token_type(token)
-            seq = tuple(token_type(_) for _ in seq)
+            token = int(token)
+            seq = tuple(int(_) for _ in seq)
             inst.tokens_mapper["backward"][token] = seq
             inst.tokens_mapper["forward"][seq] = token
 
         inst.tokens_weights = {
-            token_type(token): float(weight)
+            int(token): float(weight)
             for token, weight in model["weights"].items()
         }
 
