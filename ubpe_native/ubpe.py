@@ -193,29 +193,31 @@ class UBPE[T](UBPEBase[T]):
         tf-idf metric.
         """
         assert self._lookup is not None, "Tokenizer is not fitted"
-        assert isinstance(doc, str) or isinstance(
-            doc, list
-        ), "Data can only be a list or a string"
+        assert isinstance(doc, str) or isinstance(doc, list), (
+            "Data can only be a list or a string"
+        )
         doc: tuple[int, ...] = tuple(self.alphabet[token] for token in doc)  # pyright: ignore[reportArgumentType]
 
         # build initial stack
         start: int = 0
-        stacks: list[tuple[int, list[tuple[tuple[int, ...], int]]]] = []
+        stacks: list[tuple[int, list[tuple[int, int]]]] = []
         while start < len(doc):
-            stack = self._lookup(doc, start)
-            stacks.append((start, stack))
-            start += len(stack[-1][0])
+            stack = self._lookup(doc, start, fast=True)
+            stacks.append((start, stack))  # type: ignore
+            start += stack[-1][0]  # type: ignore
 
         # build SSSTreeNodes
-        SSSTreeNodes: dict[int, dict[tuple[int, ...], tuple[int, int]]] = dict()
+        SSSTreeNodes: dict[int, dict[int, tuple[int, int]]] = dict()
         while len(stacks) != 0:
             start, stack = stacks.pop()
-            next: dict[tuple[int, ...], tuple[int, int]] = dict()
-            for key, value in stack:
-                next_key_start = start + len(key)
-                next[key] = (value, next_key_start)
+            next: dict[int, tuple[int, int]] = dict()
+            for key_len, value in stack:
+                next_key_start = start + key_len
+                next[key_len] = (value, next_key_start)
                 if next_key_start != len(doc) and next_key_start not in SSSTreeNodes:
-                    stacks.append((next_key_start, self._lookup(doc, next_key_start)))
+                    stacks.append(
+                        (next_key_start, self._lookup(doc, next_key_start, fast=True)) # type: ignore
+                    )
             SSSTreeNodes[start] = next
 
         ## clean hanging SSSTreeNodes
@@ -259,7 +261,7 @@ class UBPE[T](UBPEBase[T]):
                                 best = EncodingCandidate(
                                     buf_weight, buf_element, buf_counter
                                 )
-                tails[start] = [ best ] # type: ignore
+                tails[start] = [best]  # type: ignore
         else:
             for start in starts:
                 buf = TopElements[EncodingCandidate](top_n)
@@ -293,7 +295,7 @@ class UBPE[T](UBPEBase[T]):
                 result.append(token)  # pyright: ignore[reportUnknownMemberType]
         doc = [self.inverse_alphabet[token] for token in result]
         if isinstance(doc[0], str):
-            return "".join(doc) # type: ignore
+            return "".join(doc)  # type: ignore
         return doc
 
     @classmethod
