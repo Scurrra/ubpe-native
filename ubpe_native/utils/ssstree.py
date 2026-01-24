@@ -78,22 +78,24 @@ class SSSTreeNode[K: str | tuple[int, ...] | list[int], V]:
         return None
 
     def __call__(
-        self, key: K, stack: list[tuple[K, V | None]], start: int = 0
+        self, key: K, stack: list[tuple[K, V | None]] = None, start: int = 0
     ) -> tuple[K, V | None]:
         """
         Trace `key` by the tree. Finds all entries `(k, v)`, where `key` starts with `k` and `v` is not `None`.
         """
+        if stack is None:
+            stack = []
         if start + len(self.key) > len(key):
-            return stack[-1] if len(stack) > 0 else (key, None)
+            return stack
         if key[start : (start + len(self.key))] == self.key:
             stack.append((self.key, self.value))
             start += len(self.key)
             if start == len(key):
-                return stack[-1]
+                return stack
             for child in self.children:
                 if child.key[0] == key[start]:
-                    _ = child(key, stack, start)
-        return stack[-1]
+                    child(key, stack, start)
+        return stack
 
 
 class SSSTree[K: str | tuple[int, ...] | list[int], V]:
@@ -139,41 +141,24 @@ class SSSTree[K: str | tuple[int, ...] | list[int], V]:
             i += 1
         return None
 
-    def __call__(
-        self, key: K, start: int = 0, fast: bool = False
-    ) -> list[tuple[K, V] | tuple[int, V]]:
+    def __call__(self, key: K, start: int = 0) -> list[tuple[int, V]]:
         """
         Trace `key` by the tree. Finds all entries `(k, v)`, where `key` starts with `k` and `v` is not `None`.
         """
-        i = 0
-        while i < len(self.children):
-            if self.children[i].key[0] == key[start]:
-                stack: list[tuple[K | int, V | None]] = []
-                _ = self.children[i](key, stack, start)  # type: ignore
-                if len(stack) > 0:
-                    if not fast:
-                        sub_key: K = copy(stack[0][0])  # type: ignore
-                        for j in range(1, len(stack)):
-                            sub_key += stack[j][0]  # type: ignore
-                            stack[j] = (  # type: ignore
-                                (copy(sub_key), None)
-                                if stack[j][1] is None
-                                else (copy(sub_key), stack[j][1])
-                            )
-                    else:
-                        sub_key_len: int = len(stack[0][0])  # type: ignore
-                        stack[0] = (
-                            (sub_key_len, None)
-                            if stack[0][1] is None
-                            else (sub_key_len, stack[0][1])
-                        )
-                        for j in range(1, len(stack)):
-                            sub_key_len += len(stack[j][0])  # type: ignore
-                            stack[j] = (
-                                (sub_key_len, None)
-                                if stack[j][1] is None
-                                else (sub_key_len, stack[j][1])
-                            )
-                return [s for s in stack if s[1] is not None]  # type: ignore (no `None` here)
-            i += 1
+        for child in self.children:
+            if child.key[0] != key[start]:
+                continue
+            
+            stack = child(key, start=start)
+
+            if not stack:
+                return []
+
+            res = []
+            sub_key_len = 0
+            for i in range(len(stack)):
+                sub_key_len += len(stack[j][0])  # type: ignore
+                if stack[i][1] is not None:
+                    res.append((sub_key_len, stack[i][1]))    
+            return res
         return []
