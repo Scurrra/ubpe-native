@@ -25,7 +25,7 @@ class Progress:
         unit: str | None = None,
         precision: int | None = None,
     ):
-        """Initialize the progress bar.
+        """Initialize the progress meter instance.
 
         Args:
             logger (Logger | None): Logger to use for logging progress. If `None`, the process will be logged to stdout.
@@ -226,7 +226,7 @@ class Logger:
         self.progress = Progress(unit=unit, logger=self, precision=precision)
 
     def info(self, msg: str):
-        """Log an info message.
+        """Logs an info message.
 
         Args:
             msg (str): Message to log.
@@ -240,7 +240,7 @@ class Logger:
         getattr(self._file, "flush", lambda: None)
 
     def debug(self, msg: str):
-        """Log a debug message.
+        """Logs a debug message.
 
         Args:
             msg (str): Message to log.
@@ -254,7 +254,7 @@ class Logger:
         getattr(self._file, "flush", lambda: None)
 
     def warn(self, msg: str):
-        """Log a warning message.
+        """Logs a warning message.
 
         Args:
             msg (str): Message to log.
@@ -268,7 +268,7 @@ class Logger:
         getattr(self._file, "flush", lambda: None)
 
     def error(self, msg: str):
-        """Log an error message.
+        """Logs an error message.
 
         Args:
             msg (str): Message to log.
@@ -282,10 +282,7 @@ class Logger:
         getattr(self._file, "flush", lambda: None)
 
     def log_progress(self):
-        """Log progress information.
-
-        Args:
-            msg (str): Message to log.
+        """Logs progress information.
 
         Note: The method is called automatically when the progress is updated.
         """
