@@ -11,6 +11,7 @@ class UBPEClassic[T](UBPEBase[T]):
 
     def __init__(
         self,
+        *,
         alphabet_size: int | None = None,
         alphabet: dict[T, int] | None = None,
         n_tokens: int = 2**10,
@@ -22,6 +23,7 @@ class UBPEClassic[T](UBPEBase[T]):
     def fit(
         self,
         corpus: list[str | list[T] | tuple[T]],  # pyright: ignore[reportRedeclaration]
+        *,
         n_candidates: int = 50,
         rearrange_tokens: bool = True,
         quiet: bool = False,

@@ -155,8 +155,8 @@ class Logger:
 
     def __init__(
         self,
-        scope: str | None = None,
         *,
+        scope: str | None = None,
         quiet: bool = False,
         unit: str | None = None,
         precision: int | None = None,
