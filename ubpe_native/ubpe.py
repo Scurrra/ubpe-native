@@ -109,8 +109,8 @@ class UBPE[T](UBPEBase[T]):
         max_token = self.alphabet_size - 1
 
         logger.info("Starting token building")
-        progress = logger.progress(total=self.n_tokens - 1, initial=max_token - 1)
-        progress.run()
+        logger.progress(total=self.n_tokens, initial=max_token + 1)
+        logger.progress.run()
         while max_token < self.n_tokens:
             # compute all bytepairs
             pairs_counter = PairCounter(corpus)
@@ -163,8 +163,8 @@ class UBPE[T](UBPEBase[T]):
                 for i in range(len(corpus))
             ]
 
-            progress.update(len(token_pairs))
-        progress.stop()
+            logger.progress.update(len(token_pairs))
+        logger.progress.stop()
         logger.info(f"Built {len(self.tokens_mapper['backward'])} artificial tokens")
 
         if rearrange_tokens:
