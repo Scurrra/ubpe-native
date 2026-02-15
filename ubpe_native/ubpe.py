@@ -2,14 +2,7 @@ from collections import Counter
 from math import log
 
 from .ubpe_base import UBPEBase
-from .utils import SSSTree, TopElements, PairCounter
-
-try:
-    from tqdm import tqdm  # pyright: ignore[reportMissingModuleSource]
-except ImportError:
-    _has_tqdm = False
-else:
-    _has_tqdm = True
+from .utils import Logger, PairCounter, SSSTree, TopElements
 
 
 class EncodingCandidate:
@@ -77,7 +70,7 @@ class UBPE[T](UBPEBase[T]):
         corpus: list[str | list[T] | tuple[T]],  # pyright: ignore[reportRedeclaration]
         n_candidates: int = 50,
         rearrange_tokens: bool = True,
-        use_tqdm: bool = _has_tqdm,
+        quiet: bool = False,
     ):
         """
         Fit tokenizer with `corpus`.
@@ -92,10 +85,15 @@ class UBPE[T](UBPEBase[T]):
         """
         if not isinstance(corpus[0], list):
             corpus: list[list[T]] = [list(corpus[i]) for i in range(len(corpus))]  # pyright: ignore[reportAssignmentType, reportRedeclaration]
+
+        logger = Logger(scope="UBPE.fit", quiet=quiet, unit="token")
+        logger.info("Starting fitting process")
+
         corpus: list[list[int]] = [
             [self.alphabet[s] for s in doc]  # pyright: ignore[reportArgumentType]
             for doc in corpus  # pyright: ignore[reportArgumentType]
         ]
+        logger.info("Loaded the corpus")
 
         self.tokens_mapper = {
             # subsequences of tokens to a single token
@@ -108,8 +106,9 @@ class UBPE[T](UBPEBase[T]):
         # the first token to be added to the mapping minus one
         max_token = self.alphabet_size - 1
 
-        if use_tqdm:
-            progress = tqdm(total=self.n_tokens, initial=max_token - 1)  # pyright: ignore[reportPossiblyUnboundVariable, reportUnknownVariableType]
+        logger.info("Starting token building")
+        progress = logger.progress(total=self.n_tokens - 1, initial=max_token - 1)
+        progress.run()
         while max_token < self.n_tokens:
             # compute all bytepairs
             pairs_counter = PairCounter(corpus)
@@ -162,13 +161,15 @@ class UBPE[T](UBPEBase[T]):
                 for i in range(len(corpus))
             ]
 
-            if use_tqdm:
-                progress.update(len(token_pairs))  # pyright: ignore[reportPossiblyUnboundVariable]
-        if use_tqdm:
-            progress.close()  # pyright: ignore[reportPossiblyUnboundVariable]
+            progress.update(len(token_pairs))
+        progress.stop()
+        logger.info(f"Built {len(self.tokens_mapper['backward'])} artificial tokens")
 
         if rearrange_tokens:
             self._rearrange_tokens_by_weight()
+            logger.info(
+                f"Rearranged artificial tokens: {len(self.tokens_mapper['backward'])} left"
+            )
 
         self.tokens_mapper["forward"] = {
             seq: token for token, seq in self.tokens_mapper["backward"].items()
@@ -179,6 +180,7 @@ class UBPE[T](UBPEBase[T]):
             _ = self._lookup + ((key,), key)
         for key, value in self.tokens_mapper["forward"].items():
             _ = self._lookup + (key, value)  # pyright: ignore[reportUnknownVariableType, reportOperatorIssue]
+        logger.info("Built the lookup tree")
 
     def encode(
         self,
@@ -216,7 +218,7 @@ class UBPE[T](UBPEBase[T]):
                 next[key_len] = (value, next_key_start)
                 if next_key_start != len(doc) and next_key_start not in SSSTreeNodes:
                     stacks.append(
-                        (next_key_start, self._lookup(doc, next_key_start, fast=True)) # type: ignore
+                        (next_key_start, self._lookup(doc, next_key_start, fast=True))  # type: ignore
                     )
             SSSTreeNodes[start] = next
 
@@ -245,7 +247,7 @@ class UBPE[T](UBPEBase[T]):
                         buf_element = [token] + candidate.sequence.copy()
                         buf_counter = candidate.counter.copy()
                         buf_counter.update([token])
-                        buf_weight: float = sum(
+                        buf_weight = sum(
                             (1 + log(frequency)) * self.tokens_weights.get(token, 0.0)
                             for token, frequency in buf_counter.items()
                         )
@@ -270,7 +272,7 @@ class UBPE[T](UBPEBase[T]):
                         buf_element = [token] + candidate.sequence.copy()
                         buf_counter = candidate.counter.copy()
                         buf_counter.update([token])
-                        buf_weight: float = sum(
+                        buf_weight = sum(
                             (1 + log(frequency)) * self.tokens_weights.get(token, 0.0)
                             for token, frequency in buf_counter.items()
                         )

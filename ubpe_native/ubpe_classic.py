@@ -3,14 +3,7 @@ from itertools import pairwise
 from math import log
 
 from .ubpe_base import UBPEBase
-from .utils import PairCounter
-
-try:
-    from tqdm import tqdm  # pyright: ignore[reportMissingModuleSource]
-except ImportError:
-    _has_tqdm = False
-else:
-    _has_tqdm = True
+from .utils import Logger, PairCounter
 
 
 class UBPEClassic[T](UBPEBase[T]):
@@ -31,7 +24,7 @@ class UBPEClassic[T](UBPEBase[T]):
         corpus: list[str | list[T] | tuple[T]],  # pyright: ignore[reportRedeclaration]
         n_candidates: int = 50,
         rearrange_tokens: bool = True,
-        use_tqdm: bool = _has_tqdm,
+        quiet: bool = False,
     ):
         """
         Fit tokenizer with `corpus`.
@@ -45,10 +38,15 @@ class UBPEClassic[T](UBPEBase[T]):
         """
         if not isinstance(corpus[0], list):
             corpus: list[list[T]] = [list(corpus[i]) for i in range(len(corpus))]  # pyright: ignore[reportAssignmentType, reportRedeclaration]
+
+        logger = Logger(scope="UBPEClassic.fit", quiet=quiet, unit="token")
+        logger.info("Starting fitting process")
+
         corpus: list[list[int]] = [
             [self.alphabet[s] for s in doc]  # pyright: ignore[reportArgumentType]
             for doc in corpus  # pyright: ignore[reportArgumentType]
         ]
+        logger.info("Loaded the corpus")
 
         self.tokens_mapper = {
             # subsequences of tokens to a single token
@@ -61,8 +59,9 @@ class UBPEClassic[T](UBPEBase[T]):
         # the first token to be added to the mapping minus one
         max_token = self.alphabet_size - 1
 
-        if use_tqdm:
-            progress = tqdm(total=self.n_tokens, initial=max_token - 1)  # pyright: ignore[reportPossiblyUnboundVariable, reportUnknownVariableType]
+        logger.info("Starting token building")
+        progress = logger.progress(total=self.n_tokens - 1, initial=max_token - 1)
+        progress.run()
         while max_token < self.n_tokens:
             # compute all bytepairs
             pairs_counter = PairCounter(corpus)
@@ -111,22 +110,22 @@ class UBPEClassic[T](UBPEBase[T]):
                 for i in range(len(corpus))
             ]
 
-            del pairs_counter
-
-            if use_tqdm:
-                progress.update(len(token_pairs))  # pyright: ignore[reportPossiblyUnboundVariable]
-
-        if use_tqdm:
-            progress.close()  # pyright: ignore[reportPossiblyUnboundVariable]
+            progress.update(len(token_pairs))
+        progress.stop()
+        logger.info(f"Built {len(self.tokens_mapper['backward'])} artificial tokens")
 
         if rearrange_tokens:
             self._rearrange_tokens_by_weight()
+            logger.info(
+                f"Rearranged artificial tokens: {len(self.tokens_mapper['backward'])} left"
+            )
 
         self.tokens_mapper["forward"] = {
             seq: token for token, seq in self.tokens_mapper["backward"].items()
         }
 
         self._pairs = list(self.tokens_mapper["forward"].keys())  # type: ignore
+        logger.info("Cached pairs for faster encoding")
 
     def encode(self, doc: str | list[T] | tuple[T]) -> list[tuple[list[int], float]]:  # pyright: ignore[reportRedeclaration]
         """
@@ -136,9 +135,9 @@ class UBPEClassic[T](UBPEBase[T]):
         from the vocabulary that can be substituded independently is selected and used.
         """
         assert self._pairs is not None, "Tokenizer is not fitted"
-        assert isinstance(doc, str) or isinstance(
-            doc, list
-        ), "Data can only be a list or a string"
+        assert isinstance(doc, str) or isinstance(doc, list), (
+            "Data can only be a list or a string"
+        )
         doc: list[int] = [self.alphabet[token] for token in doc]  # pyright: ignore[reportArgumentType]
 
         while True:
@@ -187,7 +186,7 @@ class UBPEClassic[T](UBPEBase[T]):
                 i += 1
         doc = [self.inverse_alphabet[token] for token in tokens]
         if isinstance(doc[0], str):
-            return "".join(doc) # type: ignore
+            return "".join(doc)  # type: ignore
         return doc
 
     @classmethod
