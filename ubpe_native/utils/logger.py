@@ -3,6 +3,8 @@ import time
 
 
 class Progress:
+    """Progress bar for tracking progress of a task."""
+
     _logger: "Logger | None"
     _unit: str
     _precision: int
@@ -16,7 +18,21 @@ class Progress:
     _rate: float | None = None
     _old_length: int | None = None
 
-    def __init__(self, *, logger=None, unit=None, precision=None):
+    def __init__(
+        self,
+        *,
+        logger: "Logger | None" = None,
+        unit: str | None = None,
+        precision: int | None = None,
+    ):
+        """Initialize the progress bar.
+
+        Args:
+            logger (Logger | None): Logger to use for logging progress. If `None`, the process will be logged to stdout.
+            unit (str | None): Unit of measurement for progress. Default is "item".
+            precision (int | None): Precision of average progress speed to display. Default is 3.
+        """
+
         if unit is None or not isinstance(unit, str):
             unit = "item"
         if precision is None or not isinstance(precision, int):
@@ -28,6 +44,15 @@ class Progress:
         self._is_running = False
 
     def __call__(self, *, total: int, initial: int = 0):
+        """Initialize the progress meter.
+
+        Args:
+            total (int): Total number of items to process.
+            initial (int): Initial number of items processed.
+
+        Note: If used in a for loop, the progress meter will be automatically started (no call `.run()` needed).
+        """
+
         if self._is_running:
             raise Exception("Progress is already running")
 
@@ -55,6 +80,8 @@ class Progress:
         self._is_active = False
 
     def run(self):
+        """Start the progress meter."""
+
         if self._is_running:
             raise Exception("Progress is already running")
 
@@ -71,6 +98,8 @@ class Progress:
             )
 
     def stop(self):
+        """Stop the progress meter."""
+
         self._is_running = False
         self._reset()
 
@@ -114,6 +143,12 @@ class Progress:
         return item
 
     def update(self, inc: int = 1):
+        """Manually update the progress meter.
+
+        Args:
+            inc (int): Number of items processed.
+        """
+
         if not self._is_running:
             raise Exception("Progress is not running")
         self._current += inc  # type: ignore (no `None` here)
@@ -140,12 +175,20 @@ class Progress:
                 )
 
     def get_current(self):
+        """Get the current progress.
+
+        Returns:
+            int: Current progress.
+        """
+
         if not self._is_active:
             raise Exception("Progress is not active")
         return self._current
 
 
 class Logger:
+    """Logger class for logging messages and progress updates."""
+
     quiet: bool
     _file = sys.stderr
 
@@ -162,6 +205,15 @@ class Logger:
         precision: int | None = None,
         file=None,
     ):
+        """Initialize the Logger class.
+
+        Args:
+            scope (str | None, optional): Scope of the logger. Defaults to `None`.
+            quiet (bool, optional): Whether to suppress logging. Defaults to `False`.
+            unit (str | None, optional): Unit for progress. Defaults to `Progress`'s default unit.
+            precision (int | None, optional): Precision for progress. Defaults to `Progress`'s default precision.
+            file (file-like object, optional): File-like object to write to. Defaults to `sys.stderr`.
+        """
         self.quiet = quiet
         self.scope = scope
         if scope is None or not isinstance(scope, str):
@@ -174,6 +226,12 @@ class Logger:
         self.progress = Progress(unit=unit, logger=self, precision=precision)
 
     def info(self, msg: str):
+        """Log an info message.
+
+        Args:
+            msg (str): Message to log.
+        """
+
         if self.quiet:
             return
         if not isinstance(msg, str):
@@ -182,6 +240,12 @@ class Logger:
         getattr(self._file, "flush", lambda: None)
 
     def debug(self, msg: str):
+        """Log a debug message.
+
+        Args:
+            msg (str): Message to log.
+        """
+
         if self.quiet:
             return
         if not isinstance(msg, str):
@@ -190,6 +254,12 @@ class Logger:
         getattr(self._file, "flush", lambda: None)
 
     def warn(self, msg: str):
+        """Log a warning message.
+
+        Args:
+            msg (str): Message to log.
+        """
+
         if self.quiet:
             return
         if not isinstance(msg, str):
@@ -198,6 +268,12 @@ class Logger:
         getattr(self._file, "flush", lambda: None)
 
     def error(self, msg: str):
+        """Log an error message.
+
+        Args:
+            msg (str): Message to log.
+        """
+
         if self.quiet:
             return
         if not isinstance(msg, str):
@@ -206,6 +282,14 @@ class Logger:
         getattr(self._file, "flush", lambda: None)
 
     def log_progress(self):
+        """Log progress information.
+
+        Args:
+            msg (str): Message to log.
+
+        Note: The method is called automatically when the progress is updated.
+        """
+
         if self.quiet:
             return
 
