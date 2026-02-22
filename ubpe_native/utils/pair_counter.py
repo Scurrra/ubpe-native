@@ -1,4 +1,5 @@
 from collections import Counter
+from heapq import nlargest
 from itertools import pairwise
 
 
@@ -13,9 +14,9 @@ class PairCounter:
         if corpus is None:
             return
 
-        assert isinstance(
-            corpus, list
-        ), "`corpus` should be a list of documents or a docment (list of tokens) itself"
+        assert isinstance(corpus, list), (
+            "`corpus` should be a list of documents or a docment (list of tokens) itself"
+        )
 
         if len(corpus) == 0:
             return
@@ -31,7 +32,14 @@ class PairCounter:
         self._docs_counter.update(set(pairwise(doc)))
 
     def most_common(self, n: int) -> list[tuple[tuple[int, int], int]]:
-        return self._pairs_counter.most_common(n)
+        return nlargest(
+            n,
+            self._pairs_counter.items(),
+            key=lambda pair_count: (
+                (pair_count[1], -self._docs_counter[pair_count[0]]),
+                pair_count[0],
+            ),
+        )
 
     def __call__(self, pair: tuple[int, int]) -> tuple[int, int]:
         return (self._docs_counter[pair], self._pairs_counter[pair])
