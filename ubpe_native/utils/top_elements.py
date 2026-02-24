@@ -24,7 +24,7 @@ class TopElements[T]:
         if len(self._data) < self.n:
             heapq.heappush(self._data, element)  # type: ignore
         elif element > self._data[0]:  # type: ignore
-            heapq.heappushpop(self._data, element)  # type: ignore
+            heapq.heapreplace(self._data, element)  # type: ignore
 
     def pop(self):
         """
