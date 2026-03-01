@@ -132,3 +132,4 @@ cython_debug/
 # Formatting
 .clang-format
 .clang-tidy
+ruff.toml
