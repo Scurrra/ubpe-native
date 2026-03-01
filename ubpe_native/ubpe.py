@@ -196,10 +196,11 @@ class UBPE[T](UBPEBase[T]):
         encoded sequence. This implementation allows to select `top_n` code candidates according to the
         tf-idf metric.
         """
-        assert self._lookup is not None, "Tokenizer is not fitted"
-        assert isinstance(doc, str) or isinstance(doc, list), (
-            "Data can only be a list or a string"
-        )
+        if self._lookup is None:
+            raise ValueError("Tokenizer is not fitted")
+        if not (isinstance(doc, str) or isinstance(doc, list)):
+            raise ValueError("Data can only be a list or a string")
+
         doc: tuple[int, ...] = tuple(self.alphabet[token] for token in doc)  # pyright: ignore[reportArgumentType]
 
         # build initial stack
@@ -290,7 +291,9 @@ class UBPE[T](UBPEBase[T]):
         """
         Decode a list of `tokens` with the fitted tokenizer.
         """
-        assert self._lookup is not None, "Tokenizer is not fitted"
+        if self._lookup is None:
+            raise ValueError("Tokenizer is not fitted")
+
         result: list[int] = []
         for token in tokens:
             if token in self.tokens_mapper["backward"]:

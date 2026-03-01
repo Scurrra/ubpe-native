@@ -136,10 +136,11 @@ class UBPEClassic[T](UBPEBase[T]):
         Note: on each step instead of substituting a single pair of tokens, a list of pairs of tokens
         from the vocabulary that can be substituded independently is selected and used.
         """
-        assert self._pairs is not None, "Tokenizer is not fitted"
-        assert isinstance(doc, str) or isinstance(doc, list), (
-            "Data can only be a list or a string"
-        )
+        if self._pairs is None:
+            raise ValueError("Tokenizer is not fitted")
+        if not (isinstance(doc, str) or isinstance(doc, list)):
+            raise ValueError("Data can only be a list or a string")
+
         doc: list[int] = [self.alphabet[token] for token in doc]  # pyright: ignore[reportArgumentType]
 
         while True:
@@ -179,7 +180,9 @@ class UBPEClassic[T](UBPEBase[T]):
         """
         Decode a list of `tokens` with the fitted tokenizer.
         """
-        assert self._pairs is not None, "Tokenizer is not fitted"
+        if self._pairs is None:
+            raise ValueError("Tokenizer is not fitted")
+
         i = 0
         while i < len(tokens):
             if tokens[i] in self.tokens_mapper["backward"]:

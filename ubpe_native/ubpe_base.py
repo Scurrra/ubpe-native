@@ -18,9 +18,10 @@ class UBPEBase[T]:
         alphabet: dict[T, int] | None = None,
         n_tokens: int = 2**10,
     ):
-        assert not (
-            alphabet is None and alphabet_size is None
-        ), "Either `alphabet_size` or `alphabet` must be specified, or model should be load from json string"
+        if alphabet is None and alphabet_size is None:
+            raise TypeError(
+                "Either `alphabet_size` or `alphabet` must be specified, or model should be load from json string"
+            )
 
         # if `alphabet_size` is provided and `alphabet` is not, `T` is assumed to be `int`
         if alphabet is None:
@@ -28,9 +29,8 @@ class UBPEBase[T]:
 
         # ensure that `alphabet` is a dict
         else:
-            assert isinstance(
-                alphabet, dict
-            ), "If `alphabet` is provided, it must be a dict"
+            if not isinstance(alphabet, dict):
+                raise TypeError("If `alphabet` is provided, it must be a dict")
 
         if alphabet_size is None:
             alphabet_size = len(alphabet)  # type: ignore (`alphabet` could not be `None` till here)
@@ -66,7 +66,8 @@ class UBPEBase[T]:
         Function that rearranges found tokens according to their weights and trims
         dictionary of the tokenizer to be not greater than `self.n_tokens`.
         """
-        assert len(self.tokens_weights) != 0, "Tokenizer is not fitted"
+        if len(self.tokens_weights) == 0:
+            raise ValueError("Tokenizer is not fitted")
 
         buf = sorted(
             list(self.tokens_mapper["backward"].items()),
@@ -135,7 +136,9 @@ class UBPEBase[T]:
         """
         model = json.loads(dump)
 
-        inst = cls(n_tokens=int(model["n_tokens"]), alphabet_size=len(model["alphabet"]))
+        inst = cls(
+            n_tokens=int(model["n_tokens"]), alphabet_size=len(model["alphabet"])
+        )
 
         for key, value in model["alphabet"].items():
             key = token_type(key)
@@ -150,8 +153,7 @@ class UBPEBase[T]:
             inst.tokens_mapper["forward"][seq] = token
 
         inst.tokens_weights = {
-            int(token): float(weight)
-            for token, weight in model["weights"].items()
+            int(token): float(weight) for token, weight in model["weights"].items()
         }
 
         return inst

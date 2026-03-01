@@ -14,9 +14,10 @@ class PairCounter:
         if corpus is None:
             return
 
-        assert isinstance(corpus, list), (
-            "`corpus` should be a list of documents or a docment (list of tokens) itself"
-        )
+        if not isinstance(corpus, list):
+            raise ValueError(
+                "`corpus` should be a list of documents or a docment (list of tokens) itself"
+            )
 
         if len(corpus) == 0:
             return
