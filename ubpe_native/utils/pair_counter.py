@@ -7,7 +7,9 @@ class PairCounter:
     _pairs_counter: Counter[tuple[int, int]]
     _docs_counter: Counter[tuple[int, int]]
 
-    def __init__(self, corpus: list[list[int]] | list[int] | None = None) -> None:
+    def __init__(
+        self, corpus: list[list[list[int]]] | list[list[int]] | list[int] | None = None
+    ) -> None:
         self._docs_counter = Counter()
         self._pairs_counter = Counter()
 
@@ -28,9 +30,23 @@ class PairCounter:
         else:
             self.update(corpus)  # type: ignore
 
-    def update(self, doc: list[int]):
-        self._pairs_counter.update(pairwise(doc))
-        self._docs_counter.update(set(pairwise(doc)))
+    def update(self, doc: list[list[int]] | list[int]):
+        if not isinstance(doc, list):
+            raise ValueError("`doc` should be a list of tokens or a list of documents")
+
+        if len(doc) == 0:
+            return
+
+        if isinstance(doc[0], list):
+            unique_pairs = set()
+            for part in doc:
+                self._pairs_counter.update(pairwise(part))  # type: ignore
+                unique_pairs.update(pairwise(part))  # type: ignore
+            self._docs_counter.update(unique_pairs)
+        else:
+            # old logic, each document is a list of tokens
+            self._pairs_counter.update(pairwise(doc))  # type: ignore
+            self._docs_counter.update(set(pairwise(doc)))  # type: ignore
 
     def most_common(self, n: int) -> list[tuple[tuple[int, int], int]]:
         return nlargest(
