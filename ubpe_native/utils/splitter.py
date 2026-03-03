@@ -1,7 +1,7 @@
 import re
 from enum import Flag, auto
 
-from ssstree import SSSTree
+from .ssstree import SSSTree
 
 
 class SplitMode(Flag):
@@ -24,11 +24,11 @@ class SplitMode(Flag):
     FULL = KNOWN_WORDS | BREAK_TOKENS | REGEX | STOP_TOKENS
 
 
-class SplitPipeline[T]:
+class SplitPipeline[T: str | int]:
     """SplitPipeline class"""
 
-    alphabet: dict
-    known_words: dict[T, int] | None = None
+    alphabet: dict[T, int]
+    known_words: dict[T, int] | dict[tuple[T, ...], int] | None = None
     break_tokens: set | None = None
     stop_tokens: set | None = None
     regex_str: str | None = None
@@ -38,12 +38,16 @@ class SplitPipeline[T]:
 
     def __init__(
         self,
-        alphabet: list | set | str | dict,
+        alphabet: list[T] | set[T] | str | dict[T, int],
         *,
-        known_words: list | dict | None = None,
-        break_tokens: set | list | None = None,
-        stop_tokens: set | list | None = None,
+        known_words: list[T]
+        | list[tuple[T, ...]]
+        | dict[T, int]
+        | dict[tuple[T, ...], int]
+        | None = None,
+        break_tokens: set[T] | list[T] | None = None,
         regex_str: str | None = None,
+        stop_tokens: set[T] | list[T] | None = None,
     ):
         """Initialize SplitPipeline class
 
@@ -55,44 +59,69 @@ class SplitPipeline[T]:
             regex_str (str, optional): Regex string to use for splitting. Defaults to None.
         """
 
-        if not alphabet:
+        if alphabet is None:
             raise Exception("`alphabet` must be provided")
         if (
             isinstance(alphabet, list)
             or isinstance(alphabet, set)
             or isinstance(alphabet, str)
         ):
-            self.alphabet = {token: i for i, token in enumerate(alphabet)}
+            self.alphabet = {token: i for i, token in enumerate(alphabet)}  # type: ignore
         elif isinstance(alphabet, dict):
             self.alphabet = alphabet
         else:
-            raise Exception(
-                "`alphabet` must be either `list` | `set` | `str` | `dict`"
-            )
+            raise Exception("`alphabet` must be either `list` | `set` | `str` | `dict`")
 
-        if known_words:
-            if isinstance(known_words, list):
-                self.known_words = {
-                    word: i
-                    for i, word in enumerate(
-                        known_words, start=len(self.alphabet)
+        if known_words is not None:
+            if isinstance(known_words, list) and len(known_words) != 0:
+                key_type = str
+                if isinstance(known_words[0], str):
+                    self.known_words = {
+                        word: i
+                        for i, word in enumerate(known_words, start=len(self.alphabet))  # type: ignore
+                    }
+                elif isinstance(known_words[0], list):
+                    key_type = tuple
+                    self.known_words = {
+                        tuple(word): i  # type: ignore
+                        for i, word in enumerate(known_words, start=len(self.alphabet))  # type: ignore
+                    }
+                elif isinstance(known_words[0], tuple):
+                    key_type = tuple
+                    self.known_words = {
+                        word: i
+                        for i, word in enumerate(known_words, start=len(self.alphabet))  # type: ignore
+                    }
+                else:
+                    raise TypeError(
+                        "If `known_words` is provided, it must be a list of strings or lists/tuples"
                     )
-                }
-                self.kw_ssstree = SSSTree[T, int]()  # type: ignore
-                for kw in self.known_words.items():
-                    _ = self.kw_ssstree + kw
+                self.kw_ssstree = SSSTree[key_type, int]()  # type: ignore
+                for kw in self.known_words.items():  # type: ignore
+                    _ = self.kw_ssstree + kw  # type: ignore
             elif isinstance(known_words, dict):
+                key_types = set(type(key) for key in known_words)
+                if len(key_types) > 1:
+                    raise TypeError(
+                        "If `known_words` is a `dict` its keys must must have the same type"
+                    )
+                key_type = key_types.pop()
+                if key_type not in (str, tuple):
+                    raise TypeError(
+                        "If `known_words` is a `dict` its keys must be strings or tuples"
+                    )
+
                 kw_tokens = sorted(known_words.values())
                 if len(alphabet) >= kw_tokens[0]:
                     raise Exception(
                         "The minimal token of known words shouldn't be greater than the number of tokens in the alphabet"
                     )
                 self.known_words = known_words
-                self.kw_ssstree = SSSTree[T, int]()  # type: ignore
+                self.kw_ssstree = SSSTree[key_type, int]()  # type: ignore
                 for kw in self.known_words.items():
-                    _ = self.kw_ssstree + kw
+                    _ = self.kw_ssstree + kw  # type: ignore
 
-        if break_tokens and (
+        if break_tokens is not None and (
             isinstance(break_tokens, set)
             or isinstance(break_tokens, list)
             or isinstance(break_tokens, str)
@@ -101,8 +130,14 @@ class SplitPipeline[T]:
             self.break_tokens = set(
                 token for token in break_tokens if token in self.alphabet
             )
+            if len(self.break_tokens) == 0:
+                self.break_tokens = None
 
-        if stop_tokens and (
+        if regex_str is not None and isinstance(regex_str, str) and len(regex_str) > 0:
+            self.regex_str = regex_str
+            self._regex = re.compile(regex_str)
+
+        if stop_tokens is not None and (
             isinstance(stop_tokens, set)
             or isinstance(stop_tokens, list)
             or isinstance(stop_tokens, str)
@@ -111,14 +146,12 @@ class SplitPipeline[T]:
             self.stop_tokens = set(
                 token for token in stop_tokens if token in self.alphabet
             )
-
-        if regex_str and isinstance(regex_str, str):
-            self.regex_str = regex_str
-            self._regex = re.compile(regex_str)
+            if len(self.stop_tokens) == 0:
+                self.stop_tokens = None
 
     def __call__(
         self,
-        doc: T,
+        doc: str | tuple[T, ...] | list[T],
         *,
         mode: SplitMode = SplitMode.FULL,
         leave_separators: bool = True,
@@ -133,15 +166,19 @@ class SplitPipeline[T]:
         Returns:
             A list of parts.
         """
+        if isinstance(doc, list):
+            doc = tuple(doc)
 
         parts = []
-        if SplitMode.KNOWN_WORDS in mode and self.kw_ssstree:
+        if SplitMode.KNOWN_WORDS in mode and self.kw_ssstree is not None:
             part_start = 0
             si = 0
             while si < len(doc):  # type: ignore
                 kw_candidates: list[tuple[int, int]] = self.kw_ssstree(
-                    doc, start=si, fast=True
-                )  # type: ignore
+                    doc,  # type: ignore
+                    start=si,
+                    fast=True,
+                )
                 if len(kw_candidates) == 0:
                     si += 1
                     continue
@@ -168,7 +205,12 @@ class SplitPipeline[T]:
                     )
                 )
         else:
-            parts = [doc]
+            parts = [
+                [self.alphabet[token] for token in part]
+                for part in self._split_part(
+                    doc, mode=mode, leave_separators=leave_separators
+                )
+            ]
         return parts
 
     def _split_part(
@@ -182,9 +224,7 @@ class SplitPipeline[T]:
         if SplitMode.BREAK_TOKENS in mode:
             splits = []
             for part in parts:
-                splits.extend(
-                    self._split_part_by_break_tokens(part, leave_separators)
-                )
+                splits.extend(self._split_part_by_break_tokens(part, leave_separators))
             parts = splits
         if SplitMode.REGEX in mode:
             splits = []
@@ -194,9 +234,7 @@ class SplitPipeline[T]:
         if SplitMode.STOP_TOKENS in mode:
             splits = []
             for part in parts:
-                splits.extend(
-                    self._split_part_by_stop_tokens(part, leave_separators)
-                )
+                splits.extend(self._split_part_by_stop_tokens(part, leave_separators))
             parts = splits
         return parts
 
@@ -204,17 +242,15 @@ class SplitPipeline[T]:
         self, part: T, leave_separators: bool = True
     ) -> list[T]:
         return (
-            self._split_part_by_tokens(
-                part, self.break_tokens, leave_separators
-            )
-            if self.break_tokens
+            self._split_part_by_tokens(part, self.break_tokens, leave_separators)
+            if self.break_tokens is not None
             else [part]
         )
 
     def _split_part_by_regex(self, part: str) -> list[str]:
         if not isinstance(part, str):
             return [part]
-        if not self._regex:
+        if self._regex is None:
             return [part]
         return self._regex.findall(part)
 
@@ -223,7 +259,7 @@ class SplitPipeline[T]:
     ) -> list[T]:
         return (
             self._split_part_by_tokens(part, self.stop_tokens, leave_separators)
-            if self.stop_tokens
+            if self.stop_tokens is not None
             else [part]
         )
 
