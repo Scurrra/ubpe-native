@@ -3,7 +3,7 @@ from itertools import pairwise
 from math import log
 
 from .ubpe_base import UBPEBase
-from .utils import Logger, PairCounter
+from .utils import Logger, PairCounter, SplitMode
 
 
 class UBPEClassic[T](UBPEBase[T]):
@@ -15,18 +15,29 @@ class UBPEClassic[T](UBPEBase[T]):
         alphabet_size: int | None = None,
         alphabet: dict[T, int] | None = None,
         n_tokens: int = 2**10,
+        known_words: list | dict | None = None,
+        break_tokens: set | list | None = None,
+        regex_str: str | None = None,
+        stop_tokens: set | list | None = None,
     ):
         super().__init__(
-            alphabet_size=alphabet_size, alphabet=alphabet, n_tokens=n_tokens
+            alphabet_size=alphabet_size,
+            alphabet=alphabet,
+            n_tokens=n_tokens,
+            known_words=known_words,
+            break_tokens=break_tokens,
+            regex_str=regex_str,
+            stop_tokens=stop_tokens,
         )
 
     def fit(
         self,
-        corpus: list[str | list[T] | tuple[T]],  # pyright: ignore[reportRedeclaration]
+        corpus: list[str | list[T] | tuple[T, ...]],  # pyright: ignore[reportRedeclaration]
         *,
         n_candidates: int = 50,
         rearrange_tokens: bool = True,
         quiet: bool = False,
+        split_mode: SplitMode = SplitMode.FULL,
     ):
         """
         Fit tokenizer with `corpus`.
@@ -38,15 +49,12 @@ class UBPEClassic[T](UBPEBase[T]):
 
         Note: "classic" means that the vocabulary maps a pair of tokens to a new token.
         """
-        if not isinstance(corpus[0], list):
-            corpus: list[list[T]] = [list(corpus[i]) for i in range(len(corpus))]  # pyright: ignore[reportAssignmentType, reportRedeclaration]
-
         logger = Logger(scope="UBPEClassic.fit", quiet=quiet, unit="token")
         logger.info("Starting fitting process")
 
-        corpus: list[list[int]] = [
-            [self.alphabet[s] for s in doc]  # pyright: ignore[reportArgumentType]
-            for doc in corpus  # pyright: ignore[reportArgumentType]
+        corpus: list[list[list[int]]] = [
+            self.split_pipeline(doc, mode=split_mode, leave_separators=False)
+            for doc in corpus
         ]
         logger.info("Loaded the corpus")
 
@@ -108,7 +116,7 @@ class UBPEClassic[T](UBPEBase[T]):
                 mini_mapping[tokens_map[0]] = (tokens_map[1], [max_token])
 
             corpus = [
-                self._replace_token_pairs(corpus[i], mini_mapping)
+                self._replace_token_pairs(corpus[i], mini_mapping)  # type: ignore
                 for i in range(len(corpus))
             ]
 
@@ -129,7 +137,12 @@ class UBPEClassic[T](UBPEBase[T]):
         self._pairs = list(self.tokens_mapper["forward"].keys())  # type: ignore
         logger.info("Cached pairs for faster encoding")
 
-    def encode(self, doc: str | list[T] | tuple[T]) -> list[tuple[list[int], float]]:  # pyright: ignore[reportRedeclaration]
+    def encode(
+        self,
+        doc: str | list[T] | tuple[T, ...],  # pyright: ignore[reportRedeclaration]
+        *,
+        split_mode: SplitMode = SplitMode.FULL,
+    ) -> list[tuple[list[int], float]]:
         """
         Encode `doc` with fitted tokenizer.
 
@@ -138,13 +151,44 @@ class UBPEClassic[T](UBPEBase[T]):
         """
         if self._pairs is None:
             raise ValueError("Tokenizer is not fitted")
-        if not (isinstance(doc, str) or isinstance(doc, list)):
+        if not isinstance(doc, (str, list, tuple)):
             raise ValueError("Data can only be a list or a string")
 
-        doc: list[int] = [self.alphabet[token] for token in doc]  # pyright: ignore[reportArgumentType]
+        parts = self.split_pipeline(doc, mode=split_mode)
+
+        if len(parts) == 1:
+            return self._encode_word(parts[0])
+
+        doc: list[int] = []
+        weight: float = 0.0
+        for part in parts:
+            if len(part) == 1:
+                doc.append(part[0])
+                # known words, break and stop tokens have weight 0.0
+                # so `weight += 0.0` is not needed
+            else:
+                encoding = self._encode_word(part)[0]
+                doc.extend(encoding[0])
+                weight += encoding[1]
+        return [(doc, weight)]
+
+    def _encode_word(
+        self,
+        word: list[int],  # pyright: ignore[reportRedeclaration]
+    ) -> list[tuple[list[int], float]]:
+        """
+        Encode `word` with fitted tokenizer.
+
+        Note: on each step instead of substituting a single pair of tokens, a list of pairs of tokens
+        from the vocabulary that can be substituded independently is selected and used.
+        """
+        if self._pairs is None:
+            raise ValueError("Tokenizer is not fitted")
+        if not isinstance(word, list):
+            raise ValueError("Data can only be a list")
 
         while True:
-            pairs = set(pairwise(doc))
+            pairs = set(pairwise(word))
 
             i = 0
             while i < len(self._pairs) and self._pairs[i] not in pairs:
@@ -165,16 +209,16 @@ class UBPEClassic[T](UBPEBase[T]):
             mini_mapping: dict[int, tuple[int, list[int]]] = {
                 pair[0]: (pair[1], [self.tokens_mapper["forward"][pair]])
                 for pair in tokens
-            }  # pyright: ignore[reportAssignmentType]
-            doc = self._replace_token_pairs(doc, mini_mapping)
+            }  # type: ignore
+            word = self._replace_token_pairs(word, mini_mapping)  # type: ignore
 
-        counter = Counter(doc)
-        weight = sum(
-            (1 + log(quantity)) * self.tokens_weights.get(token, 0.0)
+        counter = Counter(word)
+        weight: float = sum(
+            (1 + log(quantity)) * self.tokens_weights.get(token, 0.0)  # type: ignore
             for token, quantity in counter.items()
         )
 
-        return [(doc, weight)]
+        return [(word, weight)]  # type: ignore
 
     def decode(self, tokens: list[int]) -> list[T] | T:
         """
@@ -189,7 +233,23 @@ class UBPEClassic[T](UBPEBase[T]):
                 tokens[i : i + 1] = self.tokens_mapper["backward"][tokens[i]]  # type: ignore
             else:
                 i += 1
-        doc = [self.inverse_alphabet[token] for token in tokens]
+
+        doc: list[T] = []
+        if self.inverse_known_words is not None:
+            for token in tokens:
+                if token in self.inverse_alphabet:
+                    doc.append(self.inverse_alphabet[token])
+                elif token in self.inverse_known_words:
+                    doc.extend(self.inverse_known_words[token])  # type: ignore
+                else:
+                    raise ValueError(f"Unknown token {token}")
+        else:
+            for token in tokens:
+                if token in self.inverse_alphabet:
+                    doc.append(self.inverse_alphabet[token])
+                else:
+                    raise ValueError(f"Unknown token {token}")
+
         if isinstance(doc[0], str):
             return "".join(doc)  # type: ignore
         return doc

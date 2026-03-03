@@ -2,7 +2,7 @@ from collections import Counter
 from math import log
 
 from .ubpe_base import UBPEBase
-from .utils import Logger, PairCounter, SSSTree, TopElements
+from .utils import Logger, PairCounter, SplitMode, SSSTree, TopElements
 
 
 class EncodingCandidate:
@@ -61,18 +61,29 @@ class UBPE[T](UBPEBase[T]):
         alphabet_size: int | None = None,
         alphabet: dict[T, int] | None = None,
         n_tokens: int = 2**10,
+        known_words: list | dict | None = None,
+        break_tokens: set | list | None = None,
+        regex_str: str | None = None,
+        stop_tokens: set | list | None = None,
     ):
         super().__init__(
-            alphabet_size=alphabet_size, alphabet=alphabet, n_tokens=n_tokens
+            alphabet_size=alphabet_size,
+            alphabet=alphabet,
+            n_tokens=n_tokens,
+            known_words=known_words,
+            break_tokens=break_tokens,
+            regex_str=regex_str,
+            stop_tokens=stop_tokens,
         )
 
     def fit(
         self,
-        corpus: list[str | list[T] | tuple[T]],  # pyright: ignore[reportRedeclaration]
+        corpus: list[str | list[T] | tuple[T, ...]],  # pyright: ignore[reportRedeclaration]
         *,
         n_candidates: int = 50,
         rearrange_tokens: bool = True,
         quiet: bool = False,
+        split_mode: SplitMode = SplitMode.FULL,
     ):
         """
         Fit tokenizer with `corpus`.
@@ -85,15 +96,12 @@ class UBPE[T](UBPEBase[T]):
         Note: this tokenizer differs from `UBPEClassic` in the way the vocabulary is stored. Instead of recursively
         substituting a pair of tokens with another one, a sequence of initial tokens are substituded with the new token.
         """
-        if not isinstance(corpus[0], list):
-            corpus: list[list[T]] = [list(corpus[i]) for i in range(len(corpus))]  # pyright: ignore[reportAssignmentType, reportRedeclaration]
-
         logger = Logger(scope="UBPE.fit", quiet=quiet, unit="token")
         logger.info("Starting fitting process")
 
-        corpus: list[list[int]] = [
-            [self.alphabet[s] for s in doc]  # pyright: ignore[reportArgumentType]
-            for doc in corpus  # pyright: ignore[reportArgumentType]
+        corpus: list[list[list[int]]] = [
+            self.split_pipeline(doc, mode=split_mode, leave_separators=False)
+            for doc in corpus
         ]
         logger.info("Loaded the corpus")
 
@@ -159,7 +167,7 @@ class UBPE[T](UBPEBase[T]):
                 mini_mapping[t1] = (t2, [max_token])
 
             corpus = [
-                self._replace_token_pairs(corpus[i], mini_mapping)
+                self._replace_token_pairs(corpus[i], mini_mapping)  # type: ignore
                 for i in range(len(corpus))
             ]
 
@@ -186,7 +194,9 @@ class UBPE[T](UBPEBase[T]):
 
     def encode(
         self,
-        doc: str | list[T] | tuple[T],  # pyright: ignore[reportRedeclaration]
+        doc: str | list[T] | tuple[T, ...],  # pyright: ignore[reportRedeclaration]
+        *,
+        split_mode: SplitMode = SplitMode.FULL,
         top_n: int = 1,
     ) -> list[tuple[list[int], float]]:
         """
@@ -200,14 +210,103 @@ class UBPE[T](UBPEBase[T]):
             raise ValueError("Tokenizer is not fitted")
         if not (isinstance(doc, str) or isinstance(doc, list)):
             raise ValueError("Data can only be a list or a string")
+        if top_n < 1:
+            raise ValueError("`top_n` must be at least one")
 
-        doc: tuple[int, ...] = tuple(self.alphabet[token] for token in doc)  # pyright: ignore[reportArgumentType]
+        parts = self.split_pipeline(doc, mode=split_mode)
+
+        if len(parts) == 1:
+            return self._encode_word(parts[0], top_n=top_n)
+
+        if top_n == 1:
+            doc: list[int] = []
+            weight: float = 0.0
+            # as we select only the best encoding, we should just concatenate the encodings of the parts
+            for part in parts:
+                if len(part) == 1:
+                    doc.append(part[0])
+                    # known words, break and stop tokens have weight 0.0
+                    # so `weight += 0.0` is not needed
+                else:
+                    encoding = self._encode_word(part)[0]
+                    doc.extend(encoding[0])
+                    weight += encoding[1]
+
+            return [(doc, weight)]
+
+        # general case
+        tails: list[tuple[list[int], float]] = [([], 0.0)]
+
+        # iterate backwards
+        for part in parts[::-1]:
+            if len(part) == 1:
+                tails = [(part + tail, weight) for tail, weight in tails]
+            else:
+                candidates = self._encode_word(part, top_n=top_n)
+                ti, ci = 0, 0
+
+                new_tails: list[tuple[list[int], float]] = []
+                while (
+                    ci < len(candidates) and ti < len(tails) and len(new_tails) < top_n
+                ):
+                    new_tails.append(
+                        (
+                            candidates[ci][0] + tails[ti][0],
+                            candidates[ci][1] + tails[ti][1],
+                        )
+                    )
+
+                    if len(new_tails) == top_n:
+                        break
+
+                    if ci == len(candidates) - 1 and ti == len(tails) - 1:
+                        break
+
+                    if ci == len(candidates) - 1 and ti < len(tails) - 1:
+                        ti += 1
+                    elif ti == len(tails) - 1 and ci < len(candidates) - 1:
+                        ci += 1
+                    else:
+                        # here we use `>` to prioritize new candidates, i.e. to enhance diversity
+                        if (
+                            tails[ti + 1][1] + candidates[ci][1],
+                            -len(tails[ti + 1][0]) - len(candidates[ci][0]),
+                        ) > (
+                            tails[ti][1] + candidates[ci + 1][1],
+                            -len(tails[ti][0]) - len(candidates[ci + 1][0]),
+                        ):
+                            ti += 1
+                        else:
+                            ci += 1
+
+                tails = new_tails
+
+        return tails
+
+    def _encode_word(
+        self,
+        word: list[int] | tuple[int, ...],  # pyright: ignore[reportRedeclaration]
+        *,
+        top_n: int = 1,
+    ) -> list[tuple[list[int], float]]:
+        """
+        Encode `word` with fitted tokenizer.
+
+        Note: "classic" approach is much simpler for encoding but can produce only one variant of the
+        encoded sequence. This implementation allows to select `top_n` code candidates according to the
+        tf-idf metric.
+        """
+        if self._lookup is None:
+            raise ValueError("Tokenizer is not fitted")
+        if not isinstance(word, (list, tuple)):
+            raise ValueError("Data can only be a tuple")
+        word = tuple(word)
 
         # build initial stack
         start: int = 0
         stacks: list[tuple[int, list[tuple[int, int]]]] = []
-        while start < len(doc):
-            stack = self._lookup(doc, start, fast=True)
+        while start < len(word):
+            stack = self._lookup(word, start, fast=True)
             stacks.append((start, stack))  # type: ignore
             start += stack[-1][0]  # type: ignore
 
@@ -219,9 +318,9 @@ class UBPE[T](UBPEBase[T]):
             for key_len, value in stack:
                 next_key_start = start + key_len
                 next[key_len] = (value, next_key_start)
-                if next_key_start != len(doc) and next_key_start not in SSSTreeNodes:
+                if next_key_start != len(word) and next_key_start not in SSSTreeNodes:
                     stacks.append(
-                        (next_key_start, self._lookup(doc, next_key_start, fast=True))  # type: ignore
+                        (next_key_start, self._lookup(word, next_key_start, fast=True))  # type: ignore
                     )
             SSSTreeNodes[start] = next
 
@@ -231,7 +330,7 @@ class UBPE[T](UBPEBase[T]):
         # for SSSTreeNode_start, SSSTreeNode in SSSTreeNodes.items():
         #     keys_to_delete: list[tuple[int, ...]] = []
         #     for key, (_, start) in SSSTreeNode.items():
-        #         if start != len(doc) and start not in SSSTreeNodes:
+        #         if start != len(word) and start not in SSSTreeNodes:
         #             keys_to_delete.append(key)
         #     for key in keys_to_delete:
         #         del SSSTreeNode[key]
@@ -241,7 +340,7 @@ class UBPE[T](UBPEBase[T]):
         #     del SSSTreeNodes[start]
 
         starts = sorted(SSSTreeNodes.keys(), reverse=True)
-        tails: dict[int, list[EncodingCandidate]] = {len(doc): [EncodingCandidate()]}
+        tails: dict[int, list[EncodingCandidate]] = {len(word): [EncodingCandidate()]}
         if top_n == 1:
             for start in starts:
                 best: EncodingCandidate | None = None
@@ -300,7 +399,23 @@ class UBPE[T](UBPEBase[T]):
                 result.extend(self.tokens_mapper["backward"][token])  # pyright: ignore[reportUnknownMemberType, reportArgumentType]
             else:
                 result.append(token)  # pyright: ignore[reportUnknownMemberType]
-        doc = [self.inverse_alphabet[token] for token in result]
+
+        doc: list[T] = []
+        if self.inverse_known_words is not None:
+            for token in result:
+                if token in self.inverse_alphabet:
+                    doc.append(self.inverse_alphabet[token])
+                elif token in self.inverse_known_words:
+                    doc.extend(self.inverse_known_words[token])  # type: ignore
+                else:
+                    raise ValueError(f"Unknown token {token}")
+        else:
+            for token in result:
+                if token in self.inverse_alphabet:
+                    doc.append(self.inverse_alphabet[token])
+                else:
+                    raise ValueError(f"Unknown token {token}")
+
         if isinstance(doc[0], str):
             return "".join(doc)  # type: ignore
         return doc
