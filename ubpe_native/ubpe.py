@@ -345,26 +345,25 @@ class UBPE[T](UBPEBase[T]):
             for start in starts:
                 best: EncodingCandidate | None = None
                 for token, next_start in SSSTreeNodes[start].values():
-                    for candidate in tails[next_start]:
-                        buf_element = [token] + candidate.sequence.copy()
-                        buf_counter = candidate.counter.copy()
-                        buf_counter.update([token])
-                        buf_weight = sum(
-                            (1 + log(frequency)) * self.tokens_weights.get(token, 0.0)
-                            for token, frequency in buf_counter.items()
-                        )
-                        if best is None:
+                    candidate = tails[next_start][0]
+                    buf_element = [token] + candidate.sequence.copy()
+                    buf_counter = candidate.counter.copy()
+                    buf_counter.update([token])
+                    buf_weight = sum(
+                        (1 + log(frequency)) * self.tokens_weights.get(token, 0.0)
+                        for token, frequency in buf_counter.items()
+                    )
+
+                    if best is None:
+                        best = EncodingCandidate(buf_weight, buf_element, buf_counter)
+                    else:
+                        if (
+                            best.weight == buf_weight
+                            and len(best.sequence) > len(buf_element)
+                        ) or best.weight < buf_weight:
                             best = EncodingCandidate(
                                 buf_weight, buf_element, buf_counter
                             )
-                        else:
-                            if (
-                                best.weight == buf_weight
-                                and len(best.sequence) > len(buf_element)
-                            ) or best.weight < buf_weight:
-                                best = EncodingCandidate(
-                                    buf_weight, buf_element, buf_counter
-                                )
                 tails[start] = [best]  # type: ignore
         else:
             for start in starts:
@@ -378,6 +377,7 @@ class UBPE[T](UBPEBase[T]):
                             (1 + log(frequency)) * self.tokens_weights.get(token, 0.0)
                             for token, frequency in buf_counter.items()
                         )
+
                         buf.push(
                             EncodingCandidate(buf_weight, buf_element, buf_counter)
                         )
