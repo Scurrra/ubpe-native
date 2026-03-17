@@ -68,6 +68,8 @@ class SplitPipeline[T: str | int]:
         ):
             self.alphabet = {token: i for i, token in enumerate(alphabet)}  # type: ignore
         elif isinstance(alphabet, dict):
+            if sorted(alphabet.values()) != list(range(len(alphabet))):
+                raise Exception("`alphabet` must have sequential integer keys")
             self.alphabet = alphabet
         else:
             raise Exception("`alphabet` must be either `list` | `set` | `str` | `dict`")
@@ -112,9 +114,11 @@ class SplitPipeline[T: str | int]:
                     )
 
                 kw_tokens = sorted(known_words.values())
-                if len(alphabet) >= kw_tokens[0]:
+                if kw_tokens != list(
+                    range(len(alphabet), len(alphabet) + len(kw_tokens))
+                ):
                     raise Exception(
-                        "The minimal token of known words shouldn't be greater than the number of tokens in the alphabet"
+                        "`known_words` dict must have sequential integer keys"
                     )
                 self.known_words = known_words
                 self.kw_ssstree = SSSTree[key_type, int]()  # type: ignore
