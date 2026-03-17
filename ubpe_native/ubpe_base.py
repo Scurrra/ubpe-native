@@ -5,7 +5,6 @@ from .utils import SplitPipeline
 
 class UBPEBase[T]:
     n_tokens: int
-    alphabet_size: int
     alphabet: dict[T, int]
     inverse_alphabet: dict[int, T]
     tokens_mapper: dict[str, dict[int | tuple[int, ...], tuple[int, ...] | int]] = {
@@ -14,7 +13,7 @@ class UBPEBase[T]:
     }
     tokens_weights: dict[int, float] = dict()
 
-    known_words: dict[T, int] | dict[tuple[T, ...], int] | None = None
+    known_words: dict[str, int] | dict[tuple[T, ...], int] | None = None
     inverse_known_words: dict[int, str] | dict[int, tuple[T, ...]] | None = None
     break_tokens: set[T] | None = None
     regex_str: str | None = None
@@ -24,81 +23,76 @@ class UBPEBase[T]:
     def __init__(
         self,
         *,
-        alphabet_size: int | None = None,
         alphabet: dict[T, int] | list[T] | set[T] | None = None,
         n_tokens: int = 2**10,
-        known_words: list | dict | None = None,
-        break_tokens: set | list | None = None,
+        known_words: dict[str | tuple[T], int]
+        | list[str | list[T] | tuple[T]]
+        | None = None,
+        break_tokens: list[T] | set[T] | None = None,
         regex_str: str | None = None,
-        stop_tokens: set | list | None = None,
+        stop_tokens: list[T] | set[T] | None = None,
     ):
-        if alphabet is None and alphabet_size is None:
+        if alphabet is None:
             raise TypeError(
-                "Either `alphabet_size` or `alphabet` must be specified, or model should be load from json string"
+                "`alphabet` must be specified, or model should be load from json string"
             )
 
-        if known_words is not None and not isinstance(known_words, (list, dict)):
-            raise TypeError("If `known_words` is provided, it must be a list or dict")
+        if alphabet is not None and not isinstance(alphabet, (dict, list, set)):
+            raise TypeError(
+                "If `alphabet` is provided, it must be a dict, a list, or a set"
+            )
 
-        # if `alphabet_size` is provided and `alphabet` is not, `T` is assumed to be `int`
-        if alphabet is None:
-            if known_words is None:
-                alphabet = {i: i for i in range(alphabet_size)}  # type: ignore
-            else:
-                alphabet = {i: i for i in range(alphabet_size - len(known_words))}  # type: ignore
+        if len(alphabet) == 0:
+            raise ValueError("`alphabet` must be non-empty")
 
-        # ensure that `alphabet` is a dict
-        else:
-            key_types = set(type(key) for key in alphabet)
+        if known_words is not None and not isinstance(known_words, (dict, list, set)):
+            raise TypeError(
+                "If `known_words` is provided, it must be a dict, a list, or a set"
+            )
+
+        key_types = set(type(key) for key in alphabet)
+        if len(key_types) > 1:
+            raise TypeError("Elements in `alphabet` must have the same type")
+
+        if isinstance(alphabet, (list, set)):
+            alphabet = {token: i for i, token in enumerate(alphabet)}  # type: ignore
+        elif sorted(alphabet.values()) != list(range(len(alphabet))):
+            raise ValueError(
+                "Values in `alphabet` should form a sequence `0..len(alphabet)`"
+            )
+
+        if known_words is not None and len(known_words) != 0:
             if len(key_types) > 1:
                 raise TypeError(
-                    "If `alphabet` is a `dict` its keys must must have the same type"
+                    "If `known_words` is a `dict` its keys must must have the same type"
                 )
+            key_type = key_types.pop()
 
-            if isinstance(alphabet, (list, set)):
-                alphabet = {token: i for i, token in enumerate(alphabet)}  # type: ignore
-
-            if not isinstance(alphabet, dict):
-                raise TypeError(
-                    "If `alphabet` is provided, it must be a dict, a list, or a set"
-                )
-
-            if sorted(alphabet.values()) != list(range(len(alphabet))):
-                raise ValueError(
-                    "Values in `alphabet` should form a sequence `0..len(alphabet)`"
-                )
-
-        if known_words is not None:
             if isinstance(known_words, list):
-                if len(known_words) == 0:
-                    known_words = None
-                else:
-                    if isinstance(known_words[0], str):
-                        known_words = {
-                            word: i
-                            for i, word in enumerate(known_words, start=len(alphabet))  # type: ignore
-                        }
-                    elif isinstance(known_words[0], list):
-                        known_words = {
-                            tuple(word): i
-                            for i, word in enumerate(known_words, start=len(alphabet))  # type: ignore
-                        }
-                    elif isinstance(known_words[0], tuple):
-                        known_words = {
-                            word: i
-                            for i, word in enumerate(known_words, start=len(alphabet))  # type: ignore
-                        }
-                    else:
-                        raise TypeError(
-                            "If `known_words` is provided, it must be a list of strings or lists/tuples"
-                        )
-            else:
-                key_types = set(type(key) for key in known_words)
-                if len(key_types) > 1:
+                if key_type not in (str, tuple):
                     raise TypeError(
-                        "If `known_words` is a `dict` its keys must must have the same type"
+                        "If `known_words` is a `dict` its keys must be strings or tuples"
                     )
-                key_type = key_types.pop()
+                if isinstance(known_words[0], str):
+                    known_words = {
+                        word: i
+                        for i, word in enumerate(known_words, start=len(alphabet))  # type: ignore
+                    }
+                elif isinstance(known_words[0], list):
+                    known_words = {
+                        tuple(word): i
+                        for i, word in enumerate(known_words, start=len(alphabet))  # type: ignore
+                    }
+                elif isinstance(known_words[0], tuple):
+                    known_words = {
+                        word: i
+                        for i, word in enumerate(known_words, start=len(alphabet))  # type: ignore
+                    }
+                else:
+                    raise TypeError(
+                        "If `known_words` is provided, it must be a list of strings or lists/tuples"
+                    )
+            else:
                 if key_type not in (str, tuple):
                     raise TypeError(
                         "If `known_words` is a `dict` its keys must be strings or tuples"
@@ -114,38 +108,22 @@ class UBPEBase[T]:
                     raise ValueError(
                         "Values in `known_words` should form a sequence `len(alphabet)..len(alphabet)+len(known_words)`"
                     )
+        elif known_words is not None and len(known_words) == 0:
+            known_words = None
 
-        if alphabet_size is None:
-            alphabet_size = len(alphabet)  # type: ignore (`alphabet` could not be `None` till here)
-            if known_words is not None:
-                alphabet_size += len(known_words)
-        elif isinstance(alphabet_size, int):
-            if alphabet_size != len(alphabet) + (  # type: ignore
-                0 if known_words is None else len(known_words)
-            ):
-                raise ValueError(
-                    "If `alphabet_size` is provided, it must be equal to the length of `alphabet` plus the length of `known_words`"
-                )
-        else:
-            raise TypeError("If `alphabet_size` is provided, it must be an integer")
-
-        self.alphabet_size = alphabet_size
         self.alphabet = alphabet  # type: ignore (`alphabet` could not be `None` till here)
         self.inverse_alphabet = {value: key for key, value in self.alphabet.items()}
         self.n_tokens = n_tokens
 
-        self.known_words = known_words
+        self.known_words = known_words  # type: ignore
         self.inverse_known_words = (
             {value: key for key, value in self.known_words.items()}  # type: ignore
             if known_words is not None
             else None
         )
 
-        if break_tokens is not None and (
-            isinstance(break_tokens, set)
-            or isinstance(break_tokens, list)
-            or isinstance(break_tokens, str)
-            or isinstance(break_tokens, tuple)
+        if break_tokens is not None and isinstance(
+            break_tokens, (list, str, set, tuple)
         ):
             self.break_tokens = set(
                 token for token in break_tokens if token in self.alphabet
@@ -156,12 +134,7 @@ class UBPEBase[T]:
         if regex_str is not None and isinstance(regex_str, str) and len(regex_str) > 0:
             self.regex_str = regex_str
 
-        if stop_tokens is not None and (
-            isinstance(stop_tokens, set)
-            or isinstance(stop_tokens, list)
-            or isinstance(stop_tokens, str)
-            or isinstance(stop_tokens, tuple)
-        ):
+        if stop_tokens is not None and isinstance(stop_tokens, (list, str, set, tuple)):
             self.stop_tokens = set(
                 token for token in stop_tokens if token in self.alphabet
             )
@@ -208,7 +181,7 @@ class UBPEBase[T]:
                 raise TypeError("Invalid type of list elements")
         raise ValueError("Invalid list arguments")
 
-    def _rearrange_tokens_by_weight(self):
+    def _rearrange_tokens_by_weight(self, *, is_classic: bool):
         """
         Function that rearranges found tokens according to their weights and trims
         dictionary of the tokenizer to be not greater than `self.n_tokens`.
@@ -221,31 +194,48 @@ class UBPEBase[T]:
             key=lambda item: self.tokens_weights[item[0]],  # type: ignore (`item[0]` is guaranteed to be of type int)
         )
 
+        min_token = len(self.alphabet) + (
+            len(self.known_words) if self.known_words is not None else 0
+        )
+        to_delete_quantity = len(self.tokens_weights) - self.n_tokens + min_token
+
         to_delete: list[int] = []
-        for i in range(len(buf)):
-            if i in to_delete:
-                continue
-            if (
-                len(to_delete)
-                >= len(self.tokens_weights) - self.n_tokens + self.alphabet_size
-            ):
-                break
-            to_delete.append(i)
-            token = buf[i][0]
-            for j in range(i + 1, len(buf)):
-                if token in buf[j][1]:  # type: ignore (`buf[_][1]` is guaranteed to be of type `tuple[int]`)
-                    to_delete.append(j)
+        if is_classic:
+            # check tokens with smalest weights first
+            for i in range(len(buf)):
+                # skip if `i` is already pended for deletion
+                if i in to_delete:
+                    continue
+                # if all values for deletion are already found
+                if len(to_delete) >= to_delete_quantity:
+                    break
+                queue_to_delete = [i]
+                while len(queue_to_delete) > 0:
+                    to_delete.append(queue_to_delete.pop())
+                    token = buf[to_delete[-1]][0]
+                    for j in range(len(buf)):
+                        if j in to_delete:
+                            continue
+                        if token in buf[j][1]:  # type: ignore (`buf[_][1]` is guaranteed to be of type `tuple[int]`)
+                            queue_to_delete.append(j)
+        else:
+            # check tokens with smalest weights first
+            for i in range(len(buf)):
+                # if all values for deletion are already found
+                if len(to_delete) >= to_delete_quantity:
+                    break
+                to_delete.append(i)
         to_delete = [buf[i][0] for i in to_delete]  # type: ignore (`buf[_][0]` is guaranteed to be of type `int`)
         buf = buf[::-1]
 
         # the old approach could produce out-of-bounds token ids
-        # transformer = {buf[i][0]: self.alphabet_size + i for i in range(len(buf))}
+        # transformer = {buf[i][0]: min_token + i for i in range(len(buf))}
         transformer = dict[int | tuple[int, ...], int]()
         offset = 0
         for i in range(len(buf) - len(to_delete)):
             while buf[i + offset][0] in to_delete:
                 offset += 1
-            transformer[buf[i + offset][0]] = self.alphabet_size + i
+            transformer[buf[i + offset][0]] = min_token + i
 
         self.tokens_weights = {
             mapper[1]: self.tokens_weights[mapper[0]]  # type: ignore (`mapper[0]`, i.e. key in `transformer`, or the old artificial token, is guaranteed to be of type `int`)
@@ -253,15 +243,14 @@ class UBPEBase[T]:
         }
 
         # old approach sorted tokens before constructing a dict, but in the new one `transformer.items()` returns an already sorted by token weights list of mappings
-        self.tokens_mapper = {  # type: ignore
-            "backward": {
-                new_token: tuple(
-                    transformer.get(token, token)  # type: ignore (`token` is an element of `tuple[int, ...]`)
-                    for token in self.tokens_mapper["backward"][old_token]  # type: ignore (the collection here is quaranteed to be of type `tuple[int, ...]`)
-                )
-                for old_token, new_token in transformer.items()
-            }
+        mapper = {
+            new_token: tuple(
+                transformer.get(token, token)
+                for token in self.tokens_mapper["backward"][old_token]  # type: ignore (the collection here is quaranteed to be of type `tuple[int, ...]`)
+            )
+            for old_token, new_token in transformer.items()
         }
+        self.tokens_mapper["backward"] = mapper  # type: ignore
 
     def dumps(self) -> str:
         """
@@ -271,9 +260,13 @@ class UBPEBase[T]:
             "n_tokens": self.n_tokens,
             "alphabet": self.alphabet,
             "known_words": self.inverse_known_words,
-            "break_tokens": self.break_tokens,
+            "break_tokens": list(self.break_tokens)
+            if self.break_tokens is not None
+            else None,
             "regex_str": self.regex_str,
-            "stop_tokens": self.stop_tokens,
+            "stop_tokens": list(self.stop_tokens)
+            if self.stop_tokens is not None
+            else None,
             "mapper": self.tokens_mapper["backward"],
             "weights": self.tokens_weights,
         }
@@ -300,7 +293,6 @@ class UBPEBase[T]:
 
         inst = cls(
             n_tokens=int(model["n_tokens"]),
-            alphabet_size=len(model["alphabet"]),
             alphabet=alphabet,
         )
         inst.inverse_alphabet = inverse_alphabet
@@ -334,6 +326,10 @@ class UBPEBase[T]:
             regex_str=inst.regex_str,
         )
 
+        inst.tokens_mapper = {
+            "forward": dict(),
+            "backward": dict(),
+        }
         for token, seq in model["mapper"].items():
             token = int(token)
             seq = tuple(int(_) for _ in seq)
