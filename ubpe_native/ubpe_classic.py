@@ -12,8 +12,7 @@ class UBPEClassic[T](UBPEBase[T]):
     def __init__(
         self,
         *,
-        alphabet_size: int | None = None,
-        alphabet: dict[T, int] | None = None,
+        alphabet: dict[T, int] | list[T] | set[T] | None = None,
         n_tokens: int = 2**10,
         known_words: list | dict | None = None,
         break_tokens: set | list | None = None,
@@ -21,7 +20,6 @@ class UBPEClassic[T](UBPEBase[T]):
         stop_tokens: set | list | None = None,
     ):
         super().__init__(
-            alphabet_size=alphabet_size,
             alphabet=alphabet,
             n_tokens=n_tokens,
             known_words=known_words,
@@ -49,6 +47,9 @@ class UBPEClassic[T](UBPEBase[T]):
 
         Note: "classic" means that the vocabulary maps a pair of tokens to a new token.
         """
+        if n_candidates < 1:
+            raise ValueError("`n_candidates` should be greater than 0")
+
         logger = Logger(scope="UBPEClassic.fit", quiet=quiet, unit="token")
         logger.info("Starting fitting process")
 
@@ -67,7 +68,11 @@ class UBPEClassic[T](UBPEBase[T]):
         # number of occurrences of each token
         self.tokens_weights = dict()
         # the first token to be added to the mapping minus one
-        max_token = self.alphabet_size - 1
+        max_token = (
+            len(self.alphabet)
+            + (len(self.known_words) if self.known_words is not None else 0)
+            - 1
+        )
 
         logger.info("Starting token building")
         logger.progress(total=self.n_tokens, initial=max_token + 1)
@@ -125,10 +130,13 @@ class UBPEClassic[T](UBPEBase[T]):
         logger.info(f"Built {len(self.tokens_mapper['backward'])} artificial tokens")
 
         if rearrange_tokens:
-            self._rearrange_tokens_by_weight()
+            self._rearrange_tokens_by_weight(is_classic=True)
             logger.info(
                 f"Rearranged artificial tokens: {len(self.tokens_mapper['backward'])} left"
             )
+        self.n_tokens = len(self.alphabet) + len(self.tokens_weights)
+        if self.known_words is not None:
+            self.n_tokens += len(self.known_words)
 
         self.tokens_mapper["forward"] = {
             seq: token for token, seq in self.tokens_mapper["backward"].items()
@@ -227,16 +235,18 @@ class UBPEClassic[T](UBPEBase[T]):
         if self._pairs is None:
             raise ValueError("Tokenizer is not fitted")
 
+        result = tokens.copy()
+
         i = 0
-        while i < len(tokens):
-            if tokens[i] in self.tokens_mapper["backward"]:
-                tokens[i : i + 1] = self.tokens_mapper["backward"][tokens[i]]  # type: ignore
+        while i < len(result):
+            if result[i] in self.tokens_mapper["backward"]:
+                result[i : i + 1] = self.tokens_mapper["backward"][result[i]]  # type: ignore
             else:
                 i += 1
 
         doc: list[T] = []
         if self.inverse_known_words is not None:
-            for token in tokens:
+            for token in result:
                 if token in self.inverse_alphabet:
                     doc.append(self.inverse_alphabet[token])
                 elif token in self.inverse_known_words:
@@ -244,7 +254,7 @@ class UBPEClassic[T](UBPEBase[T]):
                 else:
                     raise ValueError(f"Unknown token {token}")
         else:
-            for token in tokens:
+            for token in result:
                 if token in self.inverse_alphabet:
                     doc.append(self.inverse_alphabet[token])
                 else:

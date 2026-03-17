@@ -58,8 +58,7 @@ class UBPE[T](UBPEBase[T]):
     def __init__(
         self,
         *,
-        alphabet_size: int | None = None,
-        alphabet: dict[T, int] | None = None,
+        alphabet: dict[T, int] | list[T] | set[T] | None = None,
         n_tokens: int = 2**10,
         known_words: list | dict | None = None,
         break_tokens: set | list | None = None,
@@ -67,7 +66,6 @@ class UBPE[T](UBPEBase[T]):
         stop_tokens: set | list | None = None,
     ):
         super().__init__(
-            alphabet_size=alphabet_size,
             alphabet=alphabet,
             n_tokens=n_tokens,
             known_words=known_words,
@@ -96,6 +94,9 @@ class UBPE[T](UBPEBase[T]):
         Note: this tokenizer differs from `UBPEClassic` in the way the vocabulary is stored. Instead of recursively
         substituting a pair of tokens with another one, a sequence of initial tokens are substituded with the new token.
         """
+        if n_candidates < 1:
+            raise ValueError("`n_candidates` should be greater than 0")
+
         logger = Logger(scope="UBPE.fit", quiet=quiet, unit="token")
         logger.info("Starting fitting process")
 
@@ -114,7 +115,11 @@ class UBPE[T](UBPEBase[T]):
         # number of occurrences of each token
         self.tokens_weights = dict()
         # the first token to be added to the mapping minus one
-        max_token = self.alphabet_size - 1
+        max_token = (
+            len(self.alphabet)
+            + (len(self.known_words) if self.known_words is not None else 0)
+            - 1
+        )
 
         logger.info("Starting token building")
         logger.progress(total=self.n_tokens, initial=max_token + 1)
@@ -176,10 +181,13 @@ class UBPE[T](UBPEBase[T]):
         logger.info(f"Built {len(self.tokens_mapper['backward'])} artificial tokens")
 
         if rearrange_tokens:
-            self._rearrange_tokens_by_weight()
+            self._rearrange_tokens_by_weight(is_classic=False)
             logger.info(
                 f"Rearranged artificial tokens: {len(self.tokens_mapper['backward'])} left"
             )
+        self.n_tokens = len(self.alphabet) + len(self.tokens_weights)
+        if self.known_words is not None:
+            self.n_tokens += len(self.known_words)
 
         self.tokens_mapper["forward"] = {
             seq: token for token, seq in self.tokens_mapper["backward"].items()
