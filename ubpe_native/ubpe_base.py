@@ -181,13 +181,20 @@ class UBPEBase[T]:
                 raise TypeError("Invalid type of list elements")
         raise ValueError("Invalid list arguments")
 
-    def _rearrange_tokens_by_weight(self, *, is_classic: bool):
+    def _rearrange_tokens_by_weight(
+        self, *, is_classic: bool, n_tokens: int | None = None
+    ):
         """
         Function that rearranges found tokens according to their weights and trims
-        dictionary of the tokenizer to be not greater than `self.n_tokens`.
+        dictionary of the tokenizer to be not greater than `self.n_tokens` or `n_tokens`.
         """
         if len(self.tokens_weights) == 0:
             raise ValueError("Tokenizer is not fitted")
+
+        if n_tokens is not None and n_tokens < 1:
+            raise ValueError("`n_tokens` must be greater than 0")
+        if n_tokens is None:
+            n_tokens = self.n_tokens
 
         buf = sorted(
             list(self.tokens_mapper["backward"].items()),
@@ -197,7 +204,7 @@ class UBPEBase[T]:
         min_token = len(self.alphabet) + (
             len(self.known_words) if self.known_words is not None else 0
         )
-        to_delete_quantity = len(self.tokens_weights) - self.n_tokens + min_token
+        to_delete_quantity = len(self.tokens_weights) - n_tokens + min_token
 
         to_delete: list[int] = []
         if is_classic:

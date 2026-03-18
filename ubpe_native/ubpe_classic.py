@@ -145,6 +145,22 @@ class UBPEClassic[T](UBPEBase[T]):
         self._pairs = list(self.tokens_mapper["forward"].keys())  # type: ignore
         logger.info("Cached pairs for faster encoding")
 
+    def rearrange_tokens(self, *, n_tokens: int | None = None):
+        """
+        Rearrange tokens by weight.
+        """
+        self._rearrange_tokens_by_weight(is_classic=True, n_tokens=n_tokens)
+
+        self.n_tokens = len(self.alphabet) + len(self.tokens_weights)
+        if self.known_words is not None:
+            self.n_tokens += len(self.known_words)
+
+        self.tokens_mapper["forward"] = {
+            seq: token for token, seq in self.tokens_mapper["backward"].items()
+        }
+
+        self._pairs = list(self.tokens_mapper["forward"].keys())  # type: ignore
+
     def encode(
         self,
         doc: str | list[T] | tuple[T, ...],  # pyright: ignore[reportRedeclaration]

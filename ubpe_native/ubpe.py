@@ -200,6 +200,26 @@ class UBPE[T](UBPEBase[T]):
             _ = self._lookup + (key, value)  # pyright: ignore[reportUnknownVariableType, reportOperatorIssue]
         logger.info("Built the lookup tree")
 
+    def rearrange_tokens(self, *, n_tokens: int | None = None):
+        """
+        Rearrange tokens by weight.
+        """
+        self._rearrange_tokens_by_weight(is_classic=False, n_tokens=n_tokens)
+
+        self.n_tokens = len(self.alphabet) + len(self.tokens_weights)
+        if self.known_words is not None:
+            self.n_tokens += len(self.known_words)
+
+        self.tokens_mapper["forward"] = {
+            seq: token for token, seq in self.tokens_mapper["backward"].items()
+        }
+
+        self._lookup = SSSTree[tuple[int], int]()
+        for key in self.inverse_alphabet.keys():
+            _ = self._lookup + ((key,), key)
+        for key, value in self.tokens_mapper["forward"].items():
+            _ = self._lookup + (key, value)  # pyright: ignore[reportUnknownVariableType, reportOperatorIssue]
+
     def encode(
         self,
         doc: str | list[T] | tuple[T, ...],  # pyright: ignore[reportRedeclaration]
