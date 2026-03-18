@@ -51,3 +51,9 @@ class TopElements[T]:
         Get sorted top `n` elements.
         """
         return sorted(self._data, reverse=True)  # type: ignore
+
+    def data(self) -> list[T]:
+        """
+        Get raw heap elements.
+        """
+        return self._data

@@ -389,8 +389,11 @@ class UBPE[T](UBPEBase[T]):
                         buf.push(
                             EncodingCandidate(buf_weight, buf_element, buf_counter)
                         )
-                tails[start] = buf.sorted()
-        candidates = tails[0]
+                    # add top candidates to `tails`
+                    # no need to sort here
+                    tails[start] = buf.data()
+        # sort just here
+        candidates = sorted(tails[0], reverse=True)
 
         return [candidate() for candidate in candidates]
 
