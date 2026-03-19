@@ -47,6 +47,9 @@ class UBPEClassic[T](UBPEBase[T]):
 
         Note: "classic" means that the vocabulary maps a pair of tokens to a new token.
         """
+        if hasattr(self, "_pairs"):
+            raise ValueError("Tokenizer can be fitted only once")
+
         if n_candidates < 1:
             raise ValueError("`n_candidates` should be greater than 0")
 
@@ -149,7 +152,7 @@ class UBPEClassic[T](UBPEBase[T]):
         """
         Rearrange tokens by weight.
         """
-        if self._pairs is None:
+        if not hasattr(self, "_pairs") or self._pairs is None:
             raise ValueError("Tokenizer is not fitted")
 
         logger = Logger(scope="UBPEClassic.rearrange_tokens", quiet=quiet)
@@ -186,7 +189,7 @@ class UBPEClassic[T](UBPEBase[T]):
         Note: on each step instead of substituting a single pair of tokens, a list of pairs of tokens
         from the vocabulary that can be substituded independently is selected and used.
         """
-        if self._pairs is None:
+        if not hasattr(self, "_pairs") or self._pairs is None:
             raise ValueError("Tokenizer is not fitted")
         if not isinstance(doc, (str, list, tuple)):
             raise ValueError("Data can only be a list or a string")
@@ -219,7 +222,7 @@ class UBPEClassic[T](UBPEBase[T]):
         Note: on each step instead of substituting a single pair of tokens, a list of pairs of tokens
         from the vocabulary that can be substituded independently is selected and used.
         """
-        if self._pairs is None:
+        if not hasattr(self, "_pairs") or self._pairs is None:
             raise ValueError("Tokenizer is not fitted")
         if not isinstance(word, list):
             raise ValueError("Data can only be a list")
@@ -261,7 +264,7 @@ class UBPEClassic[T](UBPEBase[T]):
         """
         Decode a list of `tokens` with the fitted tokenizer.
         """
-        if self._pairs is None:
+        if not hasattr(self, "_pairs") or self._pairs is None:
             raise ValueError("Tokenizer is not fitted")
 
         result = tokens.copy()

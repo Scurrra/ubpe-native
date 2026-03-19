@@ -94,6 +94,9 @@ class UBPE[T](UBPEBase[T]):
         Note: this tokenizer differs from `UBPEClassic` in the way the vocabulary is stored. Instead of recursively
         substituting a pair of tokens with another one, a sequence of initial tokens are substituded with the new token.
         """
+        if hasattr(self, "_lookup"):
+            raise ValueError("Tokenizer can be fitted only once")
+
         if n_candidates < 1:
             raise ValueError("`n_candidates` should be greater than 0")
 
@@ -204,7 +207,7 @@ class UBPE[T](UBPEBase[T]):
         """
         Rearrange tokens by weight.
         """
-        if self._lookup is None:
+        if not hasattr(self, "_lookup") or self._lookup is None:
             raise ValueError("Tokenizer is not fitted")
 
         logger = Logger(scope="UBPE.rearrange_tokens", quiet=quiet)
@@ -247,7 +250,7 @@ class UBPE[T](UBPEBase[T]):
         encoded sequence. This implementation allows to select `top_n` code candidates according to the
         tf-idf metric.
         """
-        if self._lookup is None:
+        if not hasattr(self, "_lookup") or self._lookup is None:
             raise ValueError("Tokenizer is not fitted")
         if not (isinstance(doc, str) or isinstance(doc, list)):
             raise ValueError("Data can only be a list or a string")
@@ -337,7 +340,7 @@ class UBPE[T](UBPEBase[T]):
         encoded sequence. This implementation allows to select `top_n` code candidates according to the
         tf-idf metric.
         """
-        if self._lookup is None:
+        if not hasattr(self, "_lookup") or self._lookup is None:
             raise ValueError("Tokenizer is not fitted")
         if not isinstance(word, (list, tuple)):
             raise ValueError("Data can only be a tuple")
@@ -434,7 +437,7 @@ class UBPE[T](UBPEBase[T]):
         """
         Decode a list of `tokens` with the fitted tokenizer.
         """
-        if self._lookup is None:
+        if not hasattr(self, "_lookup") or self._lookup is None:
             raise ValueError("Tokenizer is not fitted")
 
         result: list[int] = []
