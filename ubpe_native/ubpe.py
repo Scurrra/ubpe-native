@@ -200,15 +200,27 @@ class UBPE[T](UBPEBase[T]):
             _ = self._lookup + (key, value)  # pyright: ignore[reportUnknownVariableType, reportOperatorIssue]
         logger.info("Built the lookup tree")
 
-    def rearrange_tokens(self, *, n_tokens: int | None = None):
+    def rearrange_tokens(self, *, n_tokens: int | None = None, quiet: bool = False):
         """
         Rearrange tokens by weight.
         """
+        if self._lookup is None:
+            raise ValueError("Tokenizer is not fitted")
+
+        logger = Logger(scope="UBPE.rearrange_tokens", quiet=quiet)
+        logger.info("Starting rearrange tokens process")
+        logger.info(
+            f"Rearranging {self.n_tokens} tokens"
+            + (f" (limit: {n_tokens})" if n_tokens is not None else "")
+            + "..."
+        )
+
         self._rearrange_tokens_by_weight(is_classic=False, n_tokens=n_tokens)
 
         self.n_tokens = len(self.alphabet) + len(self.tokens_weights)
         if self.known_words is not None:
             self.n_tokens += len(self.known_words)
+        logger.info(f"Done. {self.n_tokens} tokens remain")
 
         self.tokens_mapper["forward"] = {
             seq: token for token, seq in self.tokens_mapper["backward"].items()
@@ -219,6 +231,7 @@ class UBPE[T](UBPEBase[T]):
             _ = self._lookup + ((key,), key)
         for key, value in self.tokens_mapper["forward"].items():
             _ = self._lookup + (key, value)  # pyright: ignore[reportUnknownVariableType, reportOperatorIssue]
+        logger.info("Updated the lookup tree")
 
     def encode(
         self,

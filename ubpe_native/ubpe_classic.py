@@ -145,21 +145,34 @@ class UBPEClassic[T](UBPEBase[T]):
         self._pairs = list(self.tokens_mapper["forward"].keys())  # type: ignore
         logger.info("Cached pairs for faster encoding")
 
-    def rearrange_tokens(self, *, n_tokens: int | None = None):
+    def rearrange_tokens(self, *, n_tokens: int | None = None, quiet: bool = False):
         """
         Rearrange tokens by weight.
         """
+        if self._pairs is None:
+            raise ValueError("Tokenizer is not fitted")
+
+        logger = Logger(scope="UBPEClassic.rearrange_tokens", quiet=quiet)
+        logger.info("Starting rearrange tokens process")
+        logger.info(
+            f"Rearranging {self.n_tokens} tokens"
+            + (f" (limit: {n_tokens})" if n_tokens is not None else "")
+            + "..."
+        )
+
         self._rearrange_tokens_by_weight(is_classic=True, n_tokens=n_tokens)
 
         self.n_tokens = len(self.alphabet) + len(self.tokens_weights)
         if self.known_words is not None:
             self.n_tokens += len(self.known_words)
+        logger.info(f"Done. {self.n_tokens} tokens remain")
 
         self.tokens_mapper["forward"] = {
             seq: token for token, seq in self.tokens_mapper["backward"].items()
         }
 
         self._pairs = list(self.tokens_mapper["forward"].keys())  # type: ignore
+        logger.info("Recached pairs for faster encoding")
 
     def encode(
         self,
