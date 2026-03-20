@@ -93,7 +93,7 @@ class SSSTreeNode[K: str | tuple[int, ...] | list[int], V]:
             for child in self.children:
                 if child.key[0] == key[start]:
                     _ = child(key, stack, start)
-        return stack[-1]
+        return stack[-1] if len(stack) > 0 else (key, None)
 
 
 class SSSTree[K: str | tuple[int, ...] | list[int], V]:
