@@ -1,4 +1,4 @@
-__version__ = "0.3.0rc1"
+__version__ = "0.3.0"
 
 __all__ = ["UBPEClassic", "UBPE"]
 
