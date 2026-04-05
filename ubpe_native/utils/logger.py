@@ -236,6 +236,8 @@ class Logger:
             return
         if not isinstance(msg, str):
             raise Exception("`msg` should be string")
+        if self.progress._is_running:
+            self._file.write("\n")
         self._file.write(f"[{self._prefix}INFO]: {msg}\n")
         getattr(self._file, "flush", lambda: None)
 
@@ -250,6 +252,8 @@ class Logger:
             return
         if not isinstance(msg, str):
             raise Exception("`msg` should be string")
+        if self.progress._is_running:
+            self._file.write("\n")
         self._file.write(f"[{self._prefix}DEBUG]: {msg}\n")
         getattr(self._file, "flush", lambda: None)
 
@@ -264,6 +268,8 @@ class Logger:
             return
         if not isinstance(msg, str):
             raise Exception("`msg` should be string")
+        if self.progress._is_running:
+            self._file.write("\n")
         self._file.write(f"[{self._prefix}WARN]: {msg}\n")
         getattr(self._file, "flush", lambda: None)
 
@@ -278,6 +284,8 @@ class Logger:
             return
         if not isinstance(msg, str):
             raise Exception("`msg` should be string")
+        if self.progress._is_running:
+            self._file.write("\n")
         self._file.write(f"[{self._prefix}ERROR]: {msg}\n")
         getattr(self._file, "flush", lambda: None)
 
